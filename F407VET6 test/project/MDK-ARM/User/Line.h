@@ -7,7 +7,7 @@
 
 
 
-void Line_Timer();
+void Line_Timer(void);
 
 
 

@@ -116,13 +116,14 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  
+  
   while (1)
   {
 		//Task_OLED_UI();
 		Task_BLE();
 		Task_Read_Sensor();
-
-		
+		Task_Motor();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

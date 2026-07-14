@@ -95,6 +95,7 @@ void Task_BLE(void)
 // Motor 变量初始化
 void Task_Motor_Init(void)
 {
+	motor_flag = 1;
 	Motor_Init(&motor_left, 1, 0);
 	Motor_Init(&motor_right, 2, 1);
 	Motor_Init(&motor_yow, 3, 0);
@@ -116,16 +117,17 @@ void Task_Motor(void)
 		motor_count = 0;
 		motor_step++;
 		if (motor_step == 1)					// left
-			Motor_SetAbsAngle(&motor_left, 100);
+			Motor_SetSpeed(&motor_left, 0);
 		else if (motor_step == 2)			// right
-			Motor_SetAbsAngle(&motor_right, 200);
+			Motor_SetSpeed(&motor_right, 0);
 		else if (motor_step == 3)			// yow
-			Motor_SetAbsAngle(&motor_yow, 300);
+			Motor_SetAbsAngle(&motor_yow, 0);
 		else if (motor_step == 4)			// pitch
 		{
-			Motor_SetAbsAngle(&motor_pitch, 400);
+			Motor_SetAbsAngle(&motor_pitch, 0);
 			
 			motor_step = 0;
+			motor_flag = 0;
 			motor_timer_flag = 0;
 		}
 	}

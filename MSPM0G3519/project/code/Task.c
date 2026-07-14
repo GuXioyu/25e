@@ -5,6 +5,7 @@
 #include "PID.h"
 #include "Motor.h"
 #include "HWT101.h"
+#include "Line.h"
 
 uint16_t tick_ms;
 
@@ -15,7 +16,7 @@ uint8_t mode;
 Motor_t motor_left, motor_right, motor_yow, motor_pitch;
 
 int16_t ang[4];
-int16_t speed[4];
+int16_t speed_left, speed_right, speed_yaw, speed_pitch;
 
 uint16_t gray;
 uint16_t gray_analog[8];
@@ -99,6 +100,15 @@ void Task_Motor_Init(void)
 	Motor_Init(&motor_pitch, 4, 0);
 }
 
+void Task_Line_Motor(void)
+{
+	if(Line_GetFlag())
+	{
+		motor_flag = 1;
+		speed_left = Line_GetSpeed(1);
+		speed_right = Line_GetSpeed(2);
+	}
+}
 // Motor 电机运动执行命令
 void Task_Motor(void)
 {
@@ -114,16 +124,17 @@ void Task_Motor(void)
 		motor_count = 0;
 		motor_step++;
 		if (motor_step == 1)					// left
-			Motor_SetAbsAngle(&motor_left, 100);
-		else if (motor_step == 2)				// right
-			Motor_SetAbsAngle(&motor_right, 200);
-		else if (motor_step == 3)				// yow
-			Motor_SetAbsAngle(&motor_yow, 300);
-		else if (motor_step == 4)				// pitch
+			Motor_SetSpeed(&motor_left, speed_left);
+		else if (motor_step == 2)			// right
+			Motor_SetSpeed(&motor_right, speed_right);
+		else if (motor_step == 3)			// yow
+			Motor_SetAbsAngle(&motor_yow, 0);
+		else if (motor_step == 4)			// pitch
 		{
-			Motor_SetAbsAngle(&motor_pitch, 400);
+			Motor_SetAbsAngle(&motor_pitch, 0);
 			
 			motor_step = 0;
+			motor_flag = 0;
 			motor_timer_flag = 0;
 		}
 	}
