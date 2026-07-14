@@ -3,6 +3,7 @@
 #include "My_Uart.h"
 #include "OLED.h"
 #include "Task.h"
+#include "Gimbal.h"
 // **************************** 代码区域 ****************************
 
 int main (void)
@@ -20,6 +21,7 @@ int main (void)
 	Serial_Init(&huart5);
 	Serial_Init(&huart6);
 	Serial_Init(&huart7);
+	Gimbal_Init();
 
     while(true)
     {
@@ -27,7 +29,6 @@ int main (void)
 //		Task_BLE();
 		
 		
-		system_delay_ms(100);
     }
 }
 
