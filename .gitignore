@@ -1,0 +1,12 @@
+# Ignore everything by default.
+*
+
+# Keep directories reachable so nested source files can be unignored.
+!*/
+
+# Keep C source and header files.
+!*.c
+!*.h
+
+# Keep this ignore file.
+!.gitignore
