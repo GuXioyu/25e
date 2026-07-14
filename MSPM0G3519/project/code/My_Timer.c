@@ -7,6 +7,7 @@
  */
 #include "My_Timer.h"
 #include "Task.h"
+#include "Line.h"
 
 /**
  * @brief  PIT 周期中断回调
@@ -21,6 +22,7 @@ static void my_timer_pit_callback(uint32 event, void *ptr)
     (void)ptr;
 
     Task_Timer();
+	Line_Timer();
 }
 
 /**

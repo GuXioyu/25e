@@ -9,14 +9,14 @@
 
 /* 串口句柄配置：串口编号、波特率、发送引脚、接收引脚、接收数据用途。 */
 /* huart4,huart5，huart6底层函数写错 */
-Serial_Port_t huart0 = {UART_0, 115200, 	UART0_TX_A10, UART0_RX_A11	};
-Serial_Port_t huart1 = {UART_1, 115200, 	UART1_TX_A8,  UART1_RX_A9	};
+Serial_Port_t huart0 = {UART_0, 115200, 	UART0_TX_A10, UART0_RX_A11	};//语音
+Serial_Port_t huart1 = {UART_1, 115200, 	UART1_TX_A8,  UART1_RX_A9	};//灰度
 //Serial_Port_t huart2 = {UART_2, 115200, 	UART2_TX_B15, UART2_RX_B16};
-Serial_Port_t huart3 = {UART_3, 115200, 	UART3_TX_A14, UART3_RX_A13	};
-Serial_Port_t huart4 = {UART_4, (115200/2), UART4_TX_B10, UART4_RX_B11	};
-Serial_Port_t huart5 = {UART_5, (115200/2), UART5_TX_A1,  UART5_RX_A0	};
-Serial_Port_t huart6 = {UART_6, (115200/2), UART6_TX_B22, UART6_RX_B21	};
-Serial_Port_t huart7 = {UART_7, 115200, 	UART7_TX_B2,  UART7_RX_B3	};
+Serial_Port_t huart3 = {UART_3, 115200, 	UART3_TX_A14, UART3_RX_A13	};//电机
+Serial_Port_t huart4 = {UART_4, (115200/2), UART4_TX_B10, UART4_RX_B11	};//RDk
+Serial_Port_t huart5 = {UART_5, (115200/2), UART5_TX_A1,  UART5_RX_A0	};//蓝牙
+Serial_Port_t huart6 = {UART_6, (115200/2), UART6_TX_B22, UART6_RX_B21	};//hwt101
+Serial_Port_t huart7 = {UART_7, 115200, 	UART7_TX_B2,  UART7_RX_B3	};//串口屏
 
 /* 各串口最新接收到的 1 字节原始数据。 */
 volatile uint8_t Serial_RxData[SERIAL_RX_UART_COUNT];

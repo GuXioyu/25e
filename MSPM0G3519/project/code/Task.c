@@ -58,7 +58,7 @@ void Task_OLED_UI(void)
 	if (OLED_timer_flag)
 	{
 		OLED_timer_flag = 0;
-		OLED_ShowNum(0,		0, 	tick_ms, 					5, OLED_8X16);
+		OLED_ShowNum(0,		0, 	tick_ms, 			5, OLED_8X16);
 		OLED_ShowNum(0, 	16, gray_analog[0],		5, OLED_6X8);
 		OLED_ShowNum(30, 	16, gray_analog[1], 	5, OLED_6X8);
 		OLED_ShowNum(60, 	16, gray_analog[2], 	5, OLED_6X8);
@@ -135,7 +135,7 @@ void Task_Read_Sensor(void)
 	{
 		sensor_timer_flag = 0;
 		angle = HWT101_GetYaw();
-		GraySensor_SendQuery(&huart4, 1);
+		GraySensor_SendQuery(&huart1, 1);
 		for (uint8_t i = 0; i < 8; i++)
 		{
 			gray_digital[i] = GraySensor_GetDigital(i);	

@@ -32,7 +32,25 @@ void Serial_RxDispatch(Serial_Port_t *huart)
     Serial_RxData[uartIndex] = byte;
 
     /* ========== 外部解析 ========== */
-    
+    if (huart == &huart3)
+	{
+		Motor_ProcessByte(uartIndex, byte);
+		return;
+	}
+
+	if (huart == &huart1)
+	{
+		GraySensor_ProcessByte(byte);
+		return;
+	}
+
+	if (huart == &huart6)
+	{
+		HWT101_ProcessByte(byte);
+		return;
+	}
+	
+	
 
     if (rxState[uartIndex] == 0)
     {

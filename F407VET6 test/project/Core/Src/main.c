@@ -104,7 +104,7 @@ int main(void)
   MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
 	HAL_TIM_Base_Start_IT(&htim1);
-  OLED_Init();
+	OLED_Init();
 	Serial_Init(&huart1);
 	Serial_Init(&huart2);
 	Serial_Init(&huart3);
@@ -122,11 +122,6 @@ int main(void)
 		Task_BLE();
 		Task_Read_Sensor();
 
-//		Serial_Printf(&huart1, "111");
-//		Serial_Printf(&huart2, "222");
-//		Serial_Printf(&huart3, "333");
-//		Serial_Printf(&huart4, "444");
-//		Serial_Printf(&huart5, "555");
 		
     /* USER CODE END WHILE */
 
