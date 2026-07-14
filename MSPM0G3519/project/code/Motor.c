@@ -6,6 +6,7 @@
 
 #define MOTOR_DIR_CW       0U
 #define MOTOR_DIR_CCW      1U
+#define MOTOR_POS_RELATIVE 0U
 #define MOTOR_POS_ABSOLUTE 1U
 #define MOTOR_FRAME_TAIL   0x6BU
 #define MOTOR_CMD_POS      0x36U
@@ -188,6 +189,34 @@ void Motor_SetAbsAngle(Motor_t *motor, float angle_deg)
 	motor->mode = MOTOR_MODE_POSITION;
 	motor->target_speed = 0;
 	motor->target_angle = angle_deg;
+}
+
+/* 相对位置模式：输入本次需要转动的角度增量，内部换算为脉冲数 */
+void Motor_SetRelAngle(Motor_t *motor, float angle_deg)
+{
+	uint8_t dir;    /* 本次相对运动方向 */
+	uint32_t pulse; /* 本次相对运动脉冲数 */
+
+	if (motor == NULL)
+	{
+		return;
+	}
+
+	dir = (angle_deg < 0.0f) ? MOTOR_DIR_CCW : MOTOR_DIR_CW; /* 角度正负决定运动方向 */
+	dir = Motor_ApplyDirReverse(motor, dir);                  /* 按电机安装方向修正运动方向 */
+	pulse = Motor_AngleToPulse(angle_deg);                    /* 将角度增量换算为脉冲数 */
+
+	Emm_V5_Pos_Control(motor->addr,
+	                   dir,
+	                   MOTOR_DEFAULT_POS_RPM,
+	                   MOTOR_DEFAULT_ACC,
+	                   pulse,
+	                   MOTOR_POS_RELATIVE,
+	                   MOTOR_DEFAULT_SYNC);
+
+	motor->mode = MOTOR_MODE_POSITION; /* 记录当前使用位置模式 */
+	motor->target_speed = 0;           /* 位置模式不保留速度目标 */
+	motor->target_angle = angle_deg;   /* 记录本次相对角度增量 */
 }
 
 /*===========================================================================

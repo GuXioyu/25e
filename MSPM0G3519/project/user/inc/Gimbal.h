@@ -2,7 +2,7 @@
 #define Gimbal_H // 防止云台模块头文件被重复包含。
 
 /**
- * @brief 初始化二维云台电机，并将上电时的位置作为两个轴的角度零点。
+ * @brief 初始化二维云台电机和 X 轴 PID 控制器。
  */
 void Gimbal_Init(void);
 

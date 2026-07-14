@@ -8,7 +8,7 @@
 /* 速度命令最大值：Emm_V5 速度模式支持 0~5000 RPM，超过会自动限幅 */
 #define MOTOR_MAX_RPM 5000U
 
-/* 绝对位置模式默认转速：调用 Motor_SetAbsAngle() 时使用，单位 RPM */
+/* 位置模式默认转速：调用绝对或相对角度接口时使用，单位 RPM */
 #define MOTOR_DEFAULT_POS_RPM 100U
 
 /* 每个脉冲对应的角度：1.8 度步距角 / 256 细分 = 0.00703125 度 */
@@ -37,7 +37,7 @@ typedef struct
 	uint8_t addr;             /* 电机地址 */
 	Motor_Mode_t mode;        /* 当前模式 */
 	int16_t target_speed;     /* 目标速度，带正负，单位 RPM */
-	float target_angle;       /* 目标绝对角度 */
+	float target_angle;       /* 最近一次位置命令角度：绝对目标或相对增量 */
 	uint8_t dir_reverse;      /* 方向设置：0=默认方向，1=方向对调 */
 } Motor_t;
 
@@ -83,7 +83,11 @@ extern volatile Motor_Rx_t Motor_Rx;
  *    Motor_SetAbsAngle(&motor1, 90.0f);    // 转到绝对 90 度位置
  *    Motor_SetAbsAngle(&motor1, -90.0f);   // 反方向转到绝对 90 度位置
  *
- * 5. 停止/失能：
+ * 5. 相对位置模式：
+ *    Motor_SetRelAngle(&motor1, 2.0f);     // 从当前位置正向转动 2 度
+ *    Motor_SetRelAngle(&motor1, -2.0f);    // 从当前位置反向转动 2 度
+ *
+ * 6. 停止/失能：
  *    Motor_Stop(&motor1);
  *    Motor_Disable(&motor1);
  */
@@ -105,6 +109,9 @@ void Motor_SetSpeed(Motor_t *motor, int16_t speed_rpm);
 
 /* 绝对位置模式：angle_deg 为目标角度，内部换算为脉冲数 */
 void Motor_SetAbsAngle(Motor_t *motor, float angle_deg);
+
+/* 相对位置模式：angle_deg 为本次角度增量，内部换算为脉冲数 */
+void Motor_SetRelAngle(Motor_t *motor, float angle_deg);
 
 /* 串口逐字节解析电机回包 */
 void Motor_ProcessByte(uint8_t uartIndex, uint8_t byte);
