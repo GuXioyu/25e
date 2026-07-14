@@ -73,7 +73,6 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	if (huart == &huart4)
 	{
 		GraySensor_ProcessByte(byte);
-		//Serial_Printf(&huart1, "%d", byte);
 		return;
 	}
 

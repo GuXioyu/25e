@@ -112,7 +112,6 @@ int main(void)
 	Serial_Init(&huart5);
 	Task_Motor_Init();
 	HWT101_SetYawZero(&huart5);
-	GraySensor_LoadThreshold();
   /* USER CODE END 2 */
 
   /* Infinite loop */

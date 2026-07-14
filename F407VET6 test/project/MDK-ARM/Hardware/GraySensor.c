@@ -2,20 +2,21 @@
  * @file    GraySensor.c
  * @brief   灰度循迹传感器 —— 8路收发实现
  *
- * @note    协议（8路模拟量）：主机发送 2 字节，传感器回包 18 字节
+ * @note    协议：主机发送 2 字节，根据查询类型接收数字量或模拟量回包
  *          主机发送：| 0x57 | ID |
- *          主机接收：| 0x75 | Data0~15（16字节） | 0x11 |
+ *          数字量接收：| 0x75 | Data0 | 0x02 |
+ *          模拟量接收：| 0x75 | Data0~15（16字节） | 0x11 |
  *
  *          Data0-1:   第 1 路模拟值（高8位在前）
  *          Data2-3:   第 2 路模拟值（高8位在前）
  *          ...
  *          Data14-15: 第 8 路模拟值（高8位在前）
+ *          0x02:      8路数字量帧尾
  *          0x11:      8路模拟量帧尾
  */
 
 #include "GraySensor.h"
 #include "../User/My_Uart.h"
-#include "My_Flash.h"
 
 #ifndef __disable_irq
 #define __disable_irq() ((void)0)
@@ -24,8 +25,6 @@
 #ifndef __enable_irq
 #define __enable_irq() ((void)0)
 #endif
-
-#define GRAYSENSOR_WHITE_THRESHOLD_GAP 100U
 
 /*===========================================================================
  * 全局数据
@@ -50,49 +49,34 @@ typedef enum
 static GS_State_t gsState   = GS_WAIT_75;
 static uint8_t    gsIdx     = 0;           /**< 数据收集索引 (0..15)      */
 static uint8_t    gsBuf[16] = {0};         /**< Data0~Data15 缓存         */
+static uint8_t    gsExpectedType = GRAYSENSOR_QUERY_ANALOG; /**< 最近一次有效查询所期望的回包类型。 */
 
-/**
- * @brief  根据当前 8 路模拟量和阈值生成数字量位图。
- * @param  threshold  黑线阈值
- * @return bit0~bit7 对应通道 0~7。
- * @note   白底黑线带回差判断：
- *         - 模拟量 < threshold：判定黑线，输出 1
- *         - 模拟量 > threshold + 100：判定白底，输出 0
- *         - 中间区间：保持上一次数字量状态，减少阈值附近抖动
- *         默认 threshold=700 时，即 <700 为黑 1，>800 为白 0。
- */
-static uint8_t GraySensor_BuildDigital(uint16_t threshold)
+/* 根据查询类型返回回包中的有效数据字节数。 */
+static uint8_t GraySensor_GetPayloadLength(uint8_t type)
 {
-	uint8_t digital = gsData.digital;
-	uint32_t whiteThreshold = (uint32_t)threshold + GRAYSENSOR_WHITE_THRESHOLD_GAP;
+	return (type == GRAYSENSOR_QUERY_DIGITAL) ? 1U : 16U;
+}
 
-	if (whiteThreshold > 65535U)
-	{
-		whiteThreshold = 65535U;
-	}
-
-	for (uint8_t ch = 0; ch < 8; ch++)
-	{
-		if (gsData.analog[ch] < threshold)
-		{
-			digital |= (uint8_t)(1U << ch);
-		}
-		else if (gsData.analog[ch] > whiteThreshold)
-		{
-			digital &= (uint8_t)~(uint8_t)(1U << ch);
-		}
-	}
-
-	return digital;
+/* 根据查询类型返回对应的协议帧尾。 */
+static uint8_t GraySensor_GetFrameTail(uint8_t type)
+{
+	return (type == GRAYSENSOR_QUERY_DIGITAL) ? 0x02U : 0x11U;
 }
 
 /**
  * @brief 发送查询帧到传感器（主上下文调用）
  * @note 该函数会调用串口发送助手，不要在 ISR 中调用
  */
-void GraySensor_SendQuery(UART_HandleTypeDef *huart)
+void GraySensor_SendQuery(UART_HandleTypeDef *huart, uint8_t type)
 {
 	uint8_t cmd[2] = {0x57, 0x01};
+
+	if (type != GRAYSENSOR_QUERY_DIGITAL && type != GRAYSENSOR_QUERY_ANALOG)
+	{
+		return; /* 查询类型无效时不发送命令，也不改变当前解析类型。 */
+	}
+
+	gsExpectedType = type;
 	Serial_SendData(huart, cmd, 2);
 }
 
@@ -102,8 +86,8 @@ void GraySensor_SendQuery(UART_HandleTypeDef *huart)
  *
  * 解析流程：
  *  - 等待 0x75 帧头
- *  - 收集 16 字节模拟量数据（Data0..Data15）
- *  - 期望尾字节 0x11；若尾字正确则解析到 `gsData.analog`
+ *  - 按查询类型收集 1 字节数字量或 16 字节模拟量数据
+ *  - 校验对应尾字节；数字量直接更新位图，模拟量帧只更新模拟量数组，不更新数字量
  *
  * 约定：该函数应在中断上下文或串口逐字回调中被调用；绝不应调用会阻塞或
  * 引发 HAL 锁的操作。
@@ -127,7 +111,7 @@ void GraySensor_ProcessByte(uint8_t byte)
 
 	case GS_COLLECT:
 		gsBuf[gsIdx++] = byte;
-		if (gsIdx >= 16)
+		if (gsIdx >= GraySensor_GetPayloadLength(gsExpectedType))
 		{
 			gsState = GS_TAIL;
 		}
@@ -137,16 +121,21 @@ void GraySensor_ProcessByte(uint8_t byte)
 		/* 回到同步状态（无论帧尾是否正确） */
 		gsState = GS_WAIT_75;
 
-		if (byte == 0x11) /* 期望的帧尾：8 路模拟量 */
+		if (byte == GraySensor_GetFrameTail(gsExpectedType))
 		{
-			/* 解析字段，保持操作尽可能简单 */
-			/* 8 路模拟值：Data0-1, Data2-3, ..., Data14-15 */
-			for (uint8_t ch = 0; ch < 8; ch++)
+			if (gsExpectedType == GRAYSENSOR_QUERY_DIGITAL)
 			{
-				gsData.analog[ch] = (uint16_t)(((uint16_t)gsBuf[ch * 2] << 8)
-											  | gsBuf[ch * 2 + 1]);
+				gsData.digital = gsBuf[0]; /* Data0 的 bit0~bit7 对应第 1~8 路。 */
 			}
-			gsData.digital = GraySensor_BuildDigital(myFlashData.gray_threshold);
+			else
+			{
+				/* 8 路模拟值：Data0-1, Data2-3, ..., Data14-15。 */
+				for (uint8_t ch = 0; ch < 8; ch++)
+				{
+					gsData.analog[ch] = (uint16_t)(((uint16_t)gsBuf[ch * 2] << 8)
+												  | gsBuf[ch * 2 + 1]);
+				}
+			}
 		}
 
 		/* 帧尾错误：静默丢弃，gsData 不更新 */
@@ -161,6 +150,7 @@ void GraySensor_Reset(void)
 {
 	gsState    = GS_WAIT_75;
 	gsIdx      = 0;
+	gsExpectedType = GRAYSENSOR_QUERY_ANALOG;
 	gsData.digital = 0;
 	memset(gsBuf, 0, sizeof(gsBuf));
 }
@@ -179,12 +169,11 @@ uint16_t GraySensor_GetAnalog(uint8_t ch)
 	__enable_irq();
 	return val;
 }
-
 /**
  * @brief  读取指定通道的灰度数字量。
  * @param  ch  通道索引 (0..7)
  * @return 1=检测到黑线，0=白底或通道越界
- * @note   白底黑线规则：模拟量小于灰度阈值时输出 1。
+ * @note   读取最近一次校验成功的原生数字量帧。
  */
 uint8_t GraySensor_GetDigital(uint8_t ch)
 {
@@ -203,7 +192,7 @@ uint8_t GraySensor_GetDigital(uint8_t ch)
 }
 
 /**
- * @brief  读取 8 路灰度数字量位图。
+ * @brief  读取最近一次校验成功的原生数字量帧。
  * @return bit0~bit7 对应通道 0~7，位为 1 表示该路检测到黑线。
  */
 uint8_t GraySensor_GetDigitalByte(void)
@@ -215,56 +204,4 @@ uint8_t GraySensor_GetDigitalByte(void)
 	__enable_irq();
 
 	return val;
-}
-
-/**
- * @brief  读取当前灰度阈值。
- */
-uint16_t GraySensor_GetThreshold(void)
-{
-	return myFlashData.gray_threshold;
-}
-
-/**
- * @brief  修改 RAM 中的灰度阈值，并立即按新阈值刷新数字量。
- * @param  threshold  灰度阈值；白底黑线时，模拟量小于该值输出 1。
- */
-void GraySensor_SetThreshold(uint16_t threshold)
-{
-	__disable_irq();
-	myFlashData.gray_threshold = threshold;
-	gsData.digital = GraySensor_BuildDigital(threshold);
-	__enable_irq();
-}
-
-/**
- * @brief  从 My_Flash 读取灰度阈值，并刷新数字量。
- */
-void GraySensor_LoadThreshold(void)
-{
-	My_Flash_Load();
-
-	__disable_irq();
-	gsData.digital = GraySensor_BuildDigital(myFlashData.gray_threshold);
-	__enable_irq();
-}
-
-/**
- * @brief  将当前灰度阈值写入 My_Flash，实现掉电保存。
- * @return 1=保存成功，0=保存失败。
- */
-uint8_t GraySensor_SaveThreshold(void)
-{
-	return My_Flash_Save();
-}
-
-/**
- * @brief  修改灰度阈值并立即写入 My_Flash，实现掉电保存。
- * @param  threshold  灰度阈值；白底黑线时，模拟量小于该值输出 1。
- * @return 1=修改并保存成功，0=保存失败。
- */
-uint8_t GraySensor_SetAndSaveThreshold(uint16_t threshold)
-{
-	GraySensor_SetThreshold(threshold);
-	return GraySensor_SaveThreshold();
 }
