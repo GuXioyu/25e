@@ -1,3 +1,5 @@
+#include "stm32f4xx_hal.h"
+#include "usart.h"
 #include "My_Uart.h"
 #include "My_Timer.h"
 #include "OLED.h"
@@ -5,7 +7,6 @@
 #include "PID.h"
 #include "Motor.h"
 #include "HWT101.h"
-#include "Line.h"
 
 uint16_t tick_ms;
 
@@ -16,7 +17,7 @@ uint8_t mode;
 Motor_t motor_left, motor_right, motor_yow, motor_pitch;
 
 int16_t ang[4];
-int16_t speed_left, speed_right, speed_yaw, speed_pitch;
+int16_t speed[4];
 
 uint16_t gray;
 uint16_t gray_analog[8];
@@ -59,7 +60,7 @@ void Task_OLED_UI(void)
 	if (OLED_timer_flag)
 	{
 		OLED_timer_flag = 0;
-		OLED_ShowNum(0,		0, 	tick_ms, 			5, OLED_8X16);
+		OLED_ShowNum(0,		0, 	tick_ms, 					5, OLED_8X16);
 		OLED_ShowNum(0, 	16, gray_analog[0],		5, OLED_6X8);
 		OLED_ShowNum(30, 	16, gray_analog[1], 	5, OLED_6X8);
 		OLED_ShowNum(60, 	16, gray_analog[2], 	5, OLED_6X8);
@@ -94,21 +95,13 @@ void Task_BLE(void)
 // Motor 变量初始化
 void Task_Motor_Init(void)
 {
+	motor_flag = 1;
 	Motor_Init(&motor_left, 1, 0);
 	Motor_Init(&motor_right, 2, 1);
 	Motor_Init(&motor_yow, 3, 0);
 	Motor_Init(&motor_pitch, 4, 0);
 }
 
-void Task_Line_Motor(void)
-{
-	if(Line_GetFlag())
-	{
-		motor_flag = 1;
-		speed_left = Line_GetSpeed(1);
-		speed_right = Line_GetSpeed(2);
-	}
-}
 // Motor 电机运动执行命令
 void Task_Motor(void)
 {
@@ -124,9 +117,9 @@ void Task_Motor(void)
 		motor_count = 0;
 		motor_step++;
 		if (motor_step == 1)					// left
-			Motor_SetSpeed(&motor_left, speed_left);
+			Motor_SetSpeed(&motor_left, 0);
 		else if (motor_step == 2)			// right
-			Motor_SetSpeed(&motor_right, speed_right);
+			Motor_SetSpeed(&motor_right, 0);
 		else if (motor_step == 3)			// yow
 			Motor_SetAbsAngle(&motor_yow, 0);
 		else if (motor_step == 4)			// pitch
@@ -146,7 +139,7 @@ void Task_Read_Sensor(void)
 	{
 		sensor_timer_flag = 0;
 		angle = HWT101_GetYaw();
-		GraySensor_SendQuery(&huart1, 1);
+		GraySensor_SendQuery(&huart4, 1);
 		for (uint8_t i = 0; i < 8; i++)
 		{
 			gray_digital[i] = GraySensor_GetDigital(i);	

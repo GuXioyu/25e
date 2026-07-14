@@ -3,7 +3,7 @@
 #include "My_Uart.h"
 #include "OLED.h"
 #include "Task.h"
-#include "Gimbal.h"
+#include "Line.h"
 // **************************** 代码区域 ****************************
 
 int main (void)
@@ -21,13 +21,18 @@ int main (void)
 	Serial_Init(&huart5);
 	Serial_Init(&huart6);
 	Serial_Init(&huart7);
-	Gimbal_Init();
+	
 
     while(true)
     {
- 		Task_OLED_UI();
+// 		Task_OLED_UI();
 //		Task_BLE();
 		
+		
+//		//循迹
+//		Line();
+//		Task_Line_Motor();
+//		Task_Motor();
 		
     }
 }
