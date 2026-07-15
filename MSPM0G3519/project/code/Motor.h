@@ -23,6 +23,11 @@
 /* 默认同步标志：0=立即执行命令，1=等待 Emm_V5_Synchronous_motion() 同步触发 */
 #define MOTOR_DEFAULT_SYNC    0U
 
+/* 比较函数支持的通道数量：用于同时保存多个通道的历史输入值 */
+#ifndef MOTOR_COMPARE_CHANNELS
+#define MOTOR_COMPARE_CHANNELS 10U
+#endif
+
 /* 上层记录的电机工作模式 */
 typedef enum
 {
@@ -92,28 +97,32 @@ extern volatile Motor_Rx_t Motor_Rx;
  *    Motor_Disable(&motor1);
  */
 
-/* 初始化电机对象：addr 为电机地址，dir_reverse 为 0 默认方向、1 方向对调 */
+// 初始化电机对象：addr 为电机地址，dir_reverse 为 0 默认方向、1 方向对调
 void Motor_Init(Motor_t *motor, uint8_t addr, uint8_t dir_reverse);
 
-/* 特殊接口：发送使能命令 */
+// 发送使能命令
 void Motor_Enable(Motor_t *motor);
 
-/* 特殊接口：发送失能命令 */
+// 发送失能命令
 void Motor_Disable(Motor_t *motor);
 
-/* 立即停止电机 */
+// 立即停止电机
 void Motor_Stop(Motor_t *motor);
 
-/* 速度模式：speed_rpm 带正负，正数=CW，负数=CCW */
+// 速度模式：speed_rpm 带正负，正数=CW，负数=CCW
 void Motor_SetSpeed(Motor_t *motor, int16_t speed_rpm);
 
-/* 绝对位置模式：angle_deg 为目标角度，内部换算为脉冲数 */
+// 绝对位置模式：angle_deg 为目标角度，内部换算为脉冲数
 void Motor_SetAbsAngle(Motor_t *motor, float angle_deg);
 
-/* 相对位置模式：angle_deg 为本次角度增量，内部换算为脉冲数 */
+// 相对位置模式：angle_deg 为本次角度增量，内部换算为脉冲数
 void Motor_SetRelAngle(Motor_t *motor, float angle_deg);
 
-/* 串口逐字节解析电机回包 */
+// 串口逐字节解析电机回包
 void Motor_ProcessByte(uint8_t uartIndex, uint8_t byte);
+
+// 比较指定通道最近两次输入值：本次值与上一次相同返回 1，不同返回 0
+// 参数 channel 范围为 0..(MOTOR_COMPARE_CHANNELS-1)
+uint8_t Motor_CompareLastValue(uint8_t channel, int32_t value);
 
 #endif /* __MOTOR_H */

@@ -22,7 +22,11 @@ volatile Motor_Rx_t Motor_Rx;
  * 内部工具函数
  *===========================================================================*/
 
-/* 获取有符号速度的绝对值，并限制到协议允许范围 */
+/**
+ * @brief 获取有符号速度的绝对值，并限制到协议允许范围。
+ * @param value 带正负号的转速。
+ * @return 限幅后的无符号转速。
+ */
 static uint16_t Motor_AbsLimitInt16(int16_t value)
 {
 	int32_t temp = value;
@@ -40,7 +44,11 @@ static uint16_t Motor_AbsLimitInt16(int16_t value)
 	return (uint16_t)temp;
 }
 
-/* 限制带正负速度，保证结构体缓存值和实际发送值一致 */
+/**
+ * @brief 限制带正负速度，保证结构体缓存值和实际发送值一致。
+ * @param speed 上层输入的目标速度。
+ * @return 限幅后的目标速度。
+ */
 static int16_t Motor_LimitSignedSpeed(int16_t speed)
 {
 	if (speed > (int16_t)MOTOR_MAX_RPM)
@@ -56,13 +64,21 @@ static int16_t Motor_LimitSignedSpeed(int16_t speed)
 	return speed;
 }
 
-/* 角度只表示大小，方向由正负号单独转换为 dir */
+/**
+ * @brief 取浮点数绝对值。
+ * @param value 输入浮点数。
+ * @return 绝对值。
+ */
 static float Motor_AbsFloat(float value)
 {
 	return (value < 0.0f) ? -value : value;
 }
 
-/* 角度转 Emm_V5 位置模式需要的脉冲数 */
+/**
+ * @brief 将角度换算为位置模式脉冲数。
+ * @param angle_deg 输入角度。
+ * @return 换算后的脉冲数。
+ */
 static uint32_t Motor_AngleToPulse(float angle_deg)
 {
 	float pulse;
@@ -76,7 +92,12 @@ static uint32_t Motor_AngleToPulse(float angle_deg)
 	return (uint32_t)(pulse + 0.5f);
 }
 
-/* 根据电机安装方向设置转换实际发送方向 */
+/**
+ * @brief 根据电机安装方向修正发送方向。
+ * @param motor 电机对象。
+ * @param dir 原始方向。
+ * @return 修正后的方向。
+ */
 static uint8_t Motor_ApplyDirReverse(const Motor_t *motor, uint8_t dir)
 {
 	if (motor->dir_reverse != 0U)
@@ -91,7 +112,12 @@ static uint8_t Motor_ApplyDirReverse(const Motor_t *motor, uint8_t dir)
  * 电机控制接口
  *===========================================================================*/
 
-/* 初始化电机结构体变量，不发送使能命令 */
+/**
+ * @brief 初始化电机结构体变量，不发送使能命令。
+ * @param motor 电机对象。
+ * @param addr 电机地址。
+ * @param dir_reverse 方向是否对调。
+ */
 void Motor_Init(Motor_t *motor, uint8_t addr, uint8_t dir_reverse)
 {
 	if (motor == NULL)
@@ -106,18 +132,49 @@ void Motor_Init(Motor_t *motor, uint8_t addr, uint8_t dir_reverse)
 	motor->dir_reverse = (dir_reverse == 0U) ? 0U : 1U;
 }
 
-/* 特殊接口：发送使能电机命令 */
-void Motor_Enable(Motor_t *motor)
+/**
+ * @brief 最近一次输入值缓存（多通道）。
+ */
+static int32_t Motor_LastCompareValue[MOTOR_COMPARE_CHANNELS];
+
+/**
+ * @brief 每个通道的有效位标志（1=已保存历史值，0=无历史值）。
+ */
+static uint8_t Motor_LastCompareValid[MOTOR_COMPARE_CHANNELS] = {0};
+
+/**
+ * @brief 比较指定通道最近两次输入值。
+ * @param channel 通道编号，取值范围 0..(MOTOR_COMPARE_CHANNELS-1)。
+ * @param value 本次输入值。
+ * @return 与上一次相同返回 1，不同返回 0；当 channel 越界或为首次调用时返回 0。
+ */
+uint8_t Motor_CompareLastValue(uint8_t channel, int32_t value)
 {
-	if (motor == NULL)
+	uint8_t result = 0U;
+
+	if (channel >= MOTOR_COMPARE_CHANNELS)
 	{
-		return;
+		return 0U; /* 无效通道直接返回 0，不改变任何历史值 */
 	}
 
-	Emm_V5_En_Control(motor->addr, 1U, MOTOR_DEFAULT_SYNC);
+	if (Motor_LastCompareValid[channel] == 0U)
+	{
+		Motor_LastCompareValid[channel] = 1U;
+		Motor_LastCompareValue[channel] = value;
+		return 0U;
+	}
+
+	result = (value == Motor_LastCompareValue[channel]) ? 1U : 0U;
+	Motor_LastCompareValue[channel] = value;
+
+	return result;
 }
 
-/* 特殊接口：发送失能电机命令 */
+/**
+ * @brief 发送失能电机命令。
+ * @param motor 电机对象。
+ * @return 无。
+ */
 void Motor_Disable(Motor_t *motor)
 {
 	if (motor == NULL)
@@ -128,7 +185,11 @@ void Motor_Disable(Motor_t *motor)
 	Emm_V5_En_Control(motor->addr, 0U, MOTOR_DEFAULT_SYNC);
 }
 
-/* 停止电机 */
+/**
+ * @brief 立即停止电机。
+ * @param motor 电机对象。
+ * @return 无。
+ */
 void Motor_Stop(Motor_t *motor)
 {
 	if (motor == NULL)
@@ -141,7 +202,12 @@ void Motor_Stop(Motor_t *motor)
 	motor->target_speed = 0;
 }
 
-/* 速度模式：输入带正负 RPM，自动判断方向 */
+/**
+ * @brief 速度模式控制。
+ * @param motor 电机对象。
+ * @param speed_rpm 目标转速，带正负号。
+ * @return 无。
+ */
 void Motor_SetSpeed(Motor_t *motor, int16_t speed_rpm)
 {
 	uint8_t dir;
@@ -163,7 +229,12 @@ void Motor_SetSpeed(Motor_t *motor, int16_t speed_rpm)
 	motor->target_angle = 0.0f;
 }
 
-/* 绝对位置模式：输入目标角度，内部换算为脉冲数 */
+/**
+ * @brief 绝对位置模式控制。
+ * @param motor 电机对象。
+ * @param angle_deg 目标角度。
+ * @return 无。
+ */
 void Motor_SetAbsAngle(Motor_t *motor, float angle_deg)
 {
 	uint8_t dir;
@@ -191,7 +262,12 @@ void Motor_SetAbsAngle(Motor_t *motor, float angle_deg)
 	motor->target_angle = angle_deg;
 }
 
-/* 相对位置模式：输入本次需要转动的角度增量，内部换算为脉冲数 */
+/**
+ * @brief 相对位置模式控制。
+ * @param motor 电机对象。
+ * @param angle_deg 本次角度增量。
+ * @return 无。
+ */
 void Motor_SetRelAngle(Motor_t *motor, float angle_deg)
 {
 	uint8_t dir;    /* 本次相对运动方向 */
@@ -223,6 +299,13 @@ void Motor_SetRelAngle(Motor_t *motor, float angle_deg)
  * 内部状态机与协议解析实现
  *===========================================================================*/
 
+
+
+/**
+ * @brief 解析状态帧。
+ * @param frame 原始回包帧。
+ * @return 无。
+ */
 static void Motor_ParseStatusFrame(const uint8_t *frame)
 {
 	uint8_t status = frame[2];
@@ -239,6 +322,11 @@ static void Motor_ParseStatusFrame(const uint8_t *frame)
 	Motor_Rx.status_ready = 1U;
 }
 
+/**
+ * @brief 解析实时位置帧。
+ * @param frame 原始回包帧。
+ * @return 无。
+ */
 static void Motor_ParsePositionFrame(const uint8_t *frame)
 {
 	uint32_t pos;
@@ -262,9 +350,15 @@ static void Motor_ParsePositionFrame(const uint8_t *frame)
 	Motor_Rx.pos_ready = 1U;
 }
 
-/* 串口逐字节解析电机回包：支持 0x36 实时位置帧和 0x3A 状态帧 */
+/**
+ * @brief 串口逐字节解析电机回包。
+ * @param uartIndex 串口编号。
+ * @param byte 当前接收字节。
+ * @return 无。
+ */
 void Motor_ProcessByte(uint8_t uartIndex, uint8_t byte)
 {
+	/* 逐字节组帧缓存：8 字节足够容纳当前支持的最长帧。 */
 	static uint8_t frame[8];
 	static uint8_t index = 0U;
 	static uint8_t expect_len = 0U;
@@ -281,6 +375,7 @@ void Motor_ProcessByte(uint8_t uartIndex, uint8_t byte)
 	{
 		frame[index++] = byte;
 
+		/* 第二字节决定帧类型，按命令字确定后续期望长度。 */
 		if (byte == MOTOR_CMD_STATUS)
 		{
 			expect_len = 4U;
@@ -301,6 +396,7 @@ void Motor_ProcessByte(uint8_t uartIndex, uint8_t byte)
 
 	if ((expect_len != 0U) && (index >= expect_len))
 	{
+		/* 仅当尾字节正确时才认为整帧有效。 */
 		if (frame[expect_len - 1U] == MOTOR_FRAME_TAIL)
 		{
 			if (frame[1] == MOTOR_CMD_STATUS)

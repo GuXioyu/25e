@@ -2,6 +2,8 @@
 #define LINE_H
 
 #include "zf_common_headfile.h"
+#include "GraySensor.h"
+#include "My_Uart.h"
 
 /* 8 路灰度传感器的通道数量。 */
 #define LINE_SENSOR_COUNT (8U)

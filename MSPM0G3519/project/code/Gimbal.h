@@ -1,0 +1,46 @@
+#ifndef GIMBAL_H
+#define GIMBAL_H
+
+#include <stdint.h>
+
+/* Gimbal_GetSpeed() 的电机选择参数 */
+#define GIMBAL_MOTOR_YAW    (1U)
+#define GIMBAL_MOTOR_PITCH (2U)
+
+/**
+ * @brief  初始化云台 PID 控制器
+ * @param  无
+ * @return 无
+ */
+void Gimbal_Init(void);
+
+/**
+ * @brief  执行一次云台数据处理
+ * @note   仅在 Gimbal_Timer() 产生采样请求后处理一次
+ * @param  无
+ * @return 无
+ */
+void Gimbal(void);
+
+/**
+ * @brief  获取一次尚未读取的云台结果标志
+ * @param  无
+ * @return 1 表示存在新结果，0 表示没有新结果
+ */
+uint8_t Gimbal_GetFlag(void);
+
+/**
+ * @brief  获取指定轴的云台目标速度
+ * @param  motor GIMBAL_MOTOR_YAW 或 GIMBAL_MOTOR_PITCH
+ * @return 对应轴目标速度；参数无效时返回 0
+ */
+float Gimbal_GetSpeed(uint8_t motor);
+
+/**
+ * @brief  1 ms 定时器节拍函数，每 10 ms 请求一次云台处理
+ * @param  无
+ * @return 无
+ */
+void Gimbal_Timer(void);
+
+#endif /* GIMBAL_H */

@@ -9,6 +9,8 @@
 #include "PID.h"
 #include "Motor.h"
 #include "HWT101.h"
+#include "Line.h"
+#include "Gimbal.h"
 
 // 初始化
 void Task_Motor_Init(void);

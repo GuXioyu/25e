@@ -6,6 +6,9 @@
 #include "Line.h"
 // **************************** 代码区域 ****************************
 
+uint16_t tick_ms;
+uint8_t mode;
+
 int main (void)
 {
     clock_init(SYSTEM_CLOCK_80M);                                               // 时钟配置及系统初始化<务必保留>
@@ -26,8 +29,8 @@ int main (void)
     while(true)
     {
 // 		Task_OLED_UI();
-//		Task_BLE();
-		
+		Task_BLE();
+		Task_Read_Sensor();
 		
 //		//循迹
 //		Line();

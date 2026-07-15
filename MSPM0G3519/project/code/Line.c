@@ -1,8 +1,5 @@
 #include "Line.h"
 
-#include "GraySensor.h"
-#include "My_Uart.h"
-
 /* 灰度数据处理周期，单位为毫秒。 */
 #define LINE_SAMPLE_PERIOD_MS (10U)
 

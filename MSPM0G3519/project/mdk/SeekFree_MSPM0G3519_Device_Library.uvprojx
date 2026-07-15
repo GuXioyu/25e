@@ -1181,6 +1181,16 @@
               <FilePath>..\code\Line.h</FilePath>
             </File>
             <File>
+              <FileName>Gimbal.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\Gimbal.c</FilePath>
+            </File>
+            <File>
+              <FileName>Gimbal.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\code\Gimbal.h</FilePath>
+            </File>
+            <File>
               <FileName>新建文本文档.txt</FileName>
               <FileType>5</FileType>
               <FilePath>..\code\新建文本文档.txt</FilePath>
