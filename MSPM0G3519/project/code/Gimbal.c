@@ -47,72 +47,34 @@ static uint8_t gimbal_image_valid;
 static PID_t g_x_pid;
 
 /**
- * @brief  复制并消费 UART4 最新 `[x,y]` 帧，同时解析 x、y 坐标
+ * @brief  从 UART4 读取并解析 `cam,x,y` 格式的坐标帧
  * @param  x 输出图像 x 坐标，范围 0~639，单位：像素
  * @param  y 输出图像 y 坐标，范围 0~359，单位：像素
- * @return 读取到新帧返回 1U；无新帧或 UART4 无效返回 0U
- * @note   接收层已去掉方括号，本函数按已确认的 "x,y" 内容直接解析
+ * @return 读取到新帧返回 1U；无新帧返回 0U
+ * @note   数据格式为[cam,x,y]，例如[cam,320,180]
  */
 static uint8_t Gimbal_ReadXY(uint16_t *x, uint16_t *y)
 {
-    char frame[8];                          /* UART4 坐标帧副本，最大内容为 "639,359" */
-    const char *read;                       /* 当前正在解析的帧字符位置 */
-    uint8_t uart_index;                     /* UART4 在串口接收数组中的索引 */
-    uint16_t i;                             /* 坐标帧复制下标 */
-    uint16_t value;                         /* 当前累积的十进制坐标值，单位：像素 */
-    uint32_t primask;                       /* 进入临界区前保存的全局中断状态 */
-
-    /* 获取 UART4 对应的接收缓存位置 */
-    uart_index = Serial_GetUartIndex(&huart4);
-    if (uart_index >= SERIAL_RX_UART_COUNT)
+    if (Serial_GetRxFlag(&huart4))
     {
-        return 0U;
-    }
-
-    /* 暂停中断，避免复制过程中接收缓存变化 */
-    primask = interrupt_global_disable();
-    if (Serial_RxFlag[uart_index] == 0U)
-    {
-        interrupt_global_enable(primask);
-        return 0U;
-    }
-
-    /* 最多复制 7 个有效字符 */
-    for (i = 0U; i < (8 - 1U); i++)
-    {
-        frame[i] = Serial_RxPacket[uart_index][i];
-        if (frame[i] == '\0')
+        char *Tag = strtok((char *)Serial_RxPacket[4], ", ");
+        if (Tag != NULL && strcmp(Tag, "cam") == 0)
         {
-            break;
+            char *Value1 = strtok(NULL, ", ");
+            char *Value2 = strtok(NULL, ", ");
+            if (Value1 != NULL && Value2 != NULL)
+            {
+                int IntValue1 = atof(Value1);
+                *x = IntValue1;
+
+                int IntValue2 = atof(Value2);
+                *y = IntValue2;
+
+                return 1U;
+            }
         }
     }
-
-    /* 强制补结束符，保证本地字符串完整 */
-    frame[8 - 1U] = '\0';
-    Serial_RxFlag[uart_index] = 0U;
-    interrupt_global_enable(primask);
-
-    /* 从帧首开始解析 x 坐标 */
-    read = frame;
-    value = 0U;
-    while (*read != ',')
-    {
-        value = (uint16_t)(value * 10U + (uint16_t)(*read - '0'));
-        read++;
-    }
-    *x = value;
-
-    /* 跳过逗号，解析 y 坐标 */
-    read++;
-    value = 0U;
-    while (*read != '\0')
-    {
-        value = (uint16_t)(value * 10U + (uint16_t)(*read - '0'));
-        read++;
-    }
-    *y = value;
-
-    return 1U;
+    return 0U;
 }
 
 /**

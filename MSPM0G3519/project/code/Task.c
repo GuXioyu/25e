@@ -251,7 +251,7 @@ void Task_Screen_Tx(void)
 void Task_Screen_Rx(void)
 {
 	// 检查接收标志位
-	if (Serial_RxFlag[3] == 1)
+	if (Serial_GetRxFlag(&huart7))
 	{
 		// 解析命令标签
 		char *Tag = strtok((char *)Serial_RxPacket[3], ", ");
@@ -274,8 +274,5 @@ void Task_Screen_Rx(void)
 					mode = 8;
 			}
 		}
-
-		// 清除接收标志位
-		Serial_RxFlag[3] = 0;
 	}
 }		
