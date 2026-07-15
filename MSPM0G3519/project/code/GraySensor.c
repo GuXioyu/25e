@@ -183,9 +183,9 @@ uint8_t GraySensor_GetDigital(uint8_t ch)
 		return 0;
 	}
 
-	__disable_irq();
+//	__disable_irq();
 	val = (uint8_t)((gsData.digital >> ch) & 0x01U);
-	__enable_irq();
+//	__enable_irq();
 
 	return val;
 }

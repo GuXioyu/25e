@@ -20,6 +20,9 @@ void Task_Timer(void);
 // 任务
 void Task_OLED_UI(void);
 void Task_BLE(void);
+void Task_Screen_Rx(void);
+void Task_Screen_Tx(void);
+
 void Task_Read_Sensor(void);
 void Task_Line_Motor(void);
 void Task_Motor(void);

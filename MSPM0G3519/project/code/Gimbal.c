@@ -55,9 +55,9 @@ static PID_t g_x_pid;
  */
 static uint8_t Gimbal_ReadXY(uint16_t *x, uint16_t *y)
 {
-    if (Serial_GetRxFlag(&huart4))
+	if (Serial_GetRxFlag(&huart4))
     {
-        char *Tag = strtok((char *)Serial_RxPacket[4], ", ");
+        char *Tag = strtok((char *)Serial_GetRxPacket(&huart4), ",");
         if (Tag != NULL && strcmp(Tag, "cam") == 0)
         {
             char *Value1 = strtok(NULL, ", ");
@@ -253,6 +253,26 @@ float Gimbal_GetSpeed(uint8_t motor)
     }
 
     return 0.0f;
+}
+
+/**
+ * @brief  获取图像坐标
+ * @param  axis 1 返回 x 坐标，2 返回 y 坐标
+ * @return 对应坐标值；参数无效时返回 0
+ */
+uint16_t Gimbal_GetXY(uint8_t axis)
+{
+    if (axis == 1U)
+    {
+        return gimbal_x;
+    }
+
+    if (axis == 2U)
+    {
+        return gimbal_y;
+    }
+
+    return 0U;
 }
 
 /**

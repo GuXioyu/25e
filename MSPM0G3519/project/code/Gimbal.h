@@ -37,6 +37,13 @@ uint8_t Gimbal_GetFlag(void);
 float Gimbal_GetSpeed(uint8_t motor);
 
 /**
+ * @brief  获取图像坐标
+ * @param  axis 1 返回 x 坐标，2 返回 y 坐标
+ * @return 对应坐标值；参数无效时返回 0
+ */
+uint16_t Gimbal_GetXY(uint8_t axis);
+
+/**
  * @brief  1 ms 定时器节拍函数，每 10 ms 请求一次云台处理
  * @param  无
  * @return 无

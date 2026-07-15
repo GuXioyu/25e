@@ -1191,6 +1191,16 @@
               <FilePath>..\code\Gimbal.h</FilePath>
             </File>
             <File>
+              <FileName>Buzzer.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\Buzzer.c</FilePath>
+            </File>
+            <File>
+              <FileName>Buzzer.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\code\Buzzer.h</FilePath>
+            </File>
+            <File>
               <FileName>新建文本文档.txt</FileName>
               <FileType>5</FileType>
               <FilePath>..\code\新建文本文档.txt</FilePath>

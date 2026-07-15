@@ -6,7 +6,7 @@ extern uint8_t mode;
 uint8_t OLED_timer_flag, BLE_timer_flag, motor_timer_flag, sensor_timer_flag;	// 定时标志位
 uint8_t screen_Tx_timer_flag;
 
-uint8_t motor_flag;																// 动作标志位
+uint8_t motor_flag[4];															// 动作标志位
 
 Motor_t motor_left, motor_right, motor_yow, motor_pitch;
 
@@ -99,13 +99,13 @@ void Task_BLE(void)
 		BLE_timer_flag = 0;
 
 		// 发送姿态角数据
-		Serial_Printf(&huart1, "%d, %f\n",
-								tick_ms, angle);
-//		Serial_Printf(&huart1, "%d, %d, %d, %d, %d, %d, %d, %d, %d\n",
+		Serial_Printf(&huart5, "%d, %f, %d\n",
+								tick_ms, angle, mode);
+//		Serial_Printf(&huart5, "%d, %d, %d, %d, %d, %d, %d, %d, %d\n",
 //								tick_ms, gray_analog[0], gray_analog[1], gray_analog[2], gray_analog[3],
 //								gray_analog[4], gray_analog[5], gray_analog[6], gray_analog[7]);
 		// 发送灰度传感器数字值
-		Serial_Printf(&huart1, "%d, %d, %d, %d, %d, %d, %d, %d, %d\n",
+		Serial_Printf(&huart5, "%d, %d, %d, %d, %d, %d, %d, %d, %d\n",
 								tick_ms, gray_digital[0], gray_digital[1], gray_digital[2], gray_digital[3],
 								gray_digital[4], gray_digital[5], gray_digital[6], gray_digital[7]);
 	}
@@ -116,6 +116,7 @@ void Task_BLE(void)
  * @param  无
  * @return 无
  */
+
 void Task_Motor_Init(void)
 {
 	// 初始化左电机
@@ -126,6 +127,11 @@ void Task_Motor_Init(void)
 	Motor_Init(&motor_yow, 3, 0);
 	// 初始化云台Pitch轴电机
 	Motor_Init(&motor_pitch, 4, 0);
+	
+	for (uint8_t i = 0; i < 4; i++)
+	{
+		motor_flag[i] = 1;
+	}
 }
 
 /**
@@ -145,7 +151,7 @@ void Task_Line_Motor(void)
 void Task_Motor(void)
 {
 	static uint8_t motor_count;
-	static uint8_t motor_flag[4];
+	
 	static uint8_t motor_send_idx;
 
 	// 循迹速度获取
@@ -185,10 +191,14 @@ void Task_Motor(void)
 			// 发送对应电机指令
 			switch (idx)
 			{
-				case 0:  Motor_SetSpeed(&motor_left, speed_left);     break;
-				case 1:  Motor_SetSpeed(&motor_right, speed_right);   break;
-				case 2:  Motor_SetAbsAngle(&motor_yow, speed_yaw);    break;
-				case 3:  Motor_SetAbsAngle(&motor_pitch, speed_pitch); break;
+//				case 0:  Motor_SetSpeed(&motor_left, speed_left);     break;
+//				case 1:  Motor_SetSpeed(&motor_right, speed_right);   break;
+//				case 2:  Motor_SetAbsAngle(&motor_yow, speed_yaw);    break;
+//				case 3:  Motor_SetSpeed(&motor_pitch, speed_pitch);   break;
+				case 0:  Motor_SetSpeed(&motor_left, 0);     break;
+				case 1:  Motor_SetSpeed(&motor_right, 0);   break;
+				case 2:  Motor_SetAbsAngle(&motor_yow, 0);    break;
+				case 3:  Motor_SetSpeed(&motor_pitch, 10);   break;
 			}
 
 			motor_flag[idx] = 0;            // 清除脏标志
@@ -238,7 +248,7 @@ void Task_Screen_Tx(void)
 	screen_Tx_timer_flag = 0;
 
 	// 发送灰度传感器数据到串口屏
-	Serial_Printf(&huart4, "t0.txt=\"Gray: %d %d %d %d %d %d %d %d\"\xff\xff\xff",
+	Serial_Printf(&huart7, "t0.txt=\"Gray: %d %d %d %d %d %d %d %d\"\xff\xff\xff",
 							gray_digital[0], gray_digital[1], gray_digital[2], gray_digital[3],
 							gray_digital[4], gray_digital[5], gray_digital[6], gray_digital[7]);
 }
@@ -254,7 +264,7 @@ void Task_Screen_Rx(void)
 	if (Serial_GetRxFlag(&huart7))
 	{
 		// 解析命令标签
-		char *Tag = strtok((char *)Serial_RxPacket[3], ", ");
+		char *Tag = strtok((char *)Serial_GetRxPacket(&huart7), ", ");
 
 		// 模式切换处理
 		if (Tag != NULL && strcmp(Tag, "mode") == 0)
