@@ -83,12 +83,12 @@ static uint8_t Gimbal_ReadXY(uint16_t *x, uint16_t *y)
  */
 static void Gimbal_GetImage(void)
 {
-    if (Gimbal_ReadXY(&gimbal_x, &gimbal_y) == 0U)
+    if (Gimbal_ReadXY(&gimbal_x, &gimbal_y) == 0U)   //没有检测到目标
     {
         gimbal_image_valid = 0U;
         return;
     }
-    gimbal_image_valid = 1U;
+    gimbal_image_valid = 1U;                               //数据帧有效
 }
 
 /**
@@ -213,9 +213,12 @@ void Gimbal(void)
         return;
     }
 
-    gimbal_timer_flag = 0U;
-    Gimbal_GetImage();
+    gimbal_timer_flag = 0U;         //标志位清0
+
+    Gimbal_GetImage();              
+
     Gimbal_CalculateSpeed();
+
     gimbal_flag = 1U;
 }
 
@@ -232,6 +235,7 @@ uint8_t Gimbal_GetFlag(void)
     }
 
     gimbal_flag = 0U;
+
     return 1U;
 }
 
