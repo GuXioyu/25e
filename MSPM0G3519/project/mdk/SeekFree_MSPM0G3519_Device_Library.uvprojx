@@ -1201,6 +1201,16 @@
               <FilePath>..\code\Buzzer.h</FilePath>
             </File>
             <File>
+              <FileName>Laser.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\Laser.c</FilePath>
+            </File>
+            <File>
+              <FileName>Laser.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\code\Laser.h</FilePath>
+            </File>
+            <File>
               <FileName>新建文本文档.txt</FileName>
               <FileType>5</FileType>
               <FilePath>..\code\新建文本文档.txt</FilePath>

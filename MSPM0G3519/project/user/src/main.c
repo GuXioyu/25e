@@ -5,6 +5,8 @@
 #include "Task.h"
 #include "Line.h"
 #include "Gimbal.h"
+#include "Buzzer.h"
+#include "Laser.h"
 // **************************** 代码区域 ****************************
 
 uint16_t tick_ms;
@@ -26,26 +28,24 @@ int main (void)
 	Serial_Init(&huart6);
 	Serial_Init(&huart7);
 	//Task_Motor_Init();
+	Buzzer_Init();
+	Laser_Init();
 	
 	int16_t x,y;
     while(true)
     {
-// 		Task_OLED_UI();
-//		Task_BLE();
-//		Task_Read_Sensor();
-//		
-//		Task_Screen_Rx();
-//		
-//		Task_Screen_Tx();
-//		
+		//通信
+		Task_BLE_Rx();
+		Task_BLE_Tx();
+		//Task_OLED_UI();
+		Task_Screen_Rx();
+		Task_Screen_Tx();
 		
-//		Serial_Printf(&huart1, "111");
-//		Serial_Printf(&huart7, "777");
-//		system_delay_ms(100);
-//		//循迹
-//		Line();
-//		Task_Line_Motor();
-		//Task_Motor();
+		
+		Task_Read_Sensor();			//读取传感器：灰度 TWH101 Cam
+		
+		Task_Line();				//循迹
+		//Task_Motor();				//控制电机
 		
     }
 }

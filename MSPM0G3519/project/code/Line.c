@@ -50,7 +50,7 @@ static const int8_t line_sensor_position[LINE_SENSOR_COUNT] = {
 };
 
 /**
- * @brief 读取最近一次有效灰度帧，并发起下一次数字量查询。
+ * @brief 读取最近一次有效灰度帧，数字量查询帧由Task发送。
  * @note 灰度模块通过串口异步更新数据，因此本次使用的是已解析完成的最新帧。
  */
 static void Line_GetGray(void)
@@ -62,8 +62,6 @@ static void Line_GetGray(void)
         line_digital[index] = GraySensor_GetDigital(index);
     }
 
-    /* 发起下一帧查询，不在此处等待串口返回，避免阻塞主循环。 */
-    GraySensor_SendQuery(&huart1, GRAYSENSOR_QUERY_DIGITAL);
 }
 
 /**

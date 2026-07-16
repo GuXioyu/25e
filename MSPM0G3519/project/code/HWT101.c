@@ -35,6 +35,7 @@
 #define HWT101_CMD_LENGTH       5U
 #define HWT101_DELAY_UNLOCK_MS  200U
 #define HWT101_DELAY_ZERO_MS    500U
+#define HWT101_LAP_JUMP_DEG     90.0f
 
 /*===========================================================================
  * 内部状态机
@@ -56,6 +57,9 @@ static const uint8_t hwt101SaveCmd[HWT101_CMD_LENGTH] = {0xFF, 0xAA, 0x00, 0x00,
 static HWT101_State_t hwtState = HWT_WAIT_HEAD;           /**< 解析状态 */
 static uint8_t hwtBuf[HWT101_FRAME_LENGTH] = {0};         /**< 帧缓存   */
 static uint8_t hwtIdx = 0;                                /**< 写入索引 */
+static int32_t hwtLapCount = 0;                           /**< Z 轴累计圈数 */
+static float hwtLastYaw = 0.0f;                           /**< 上一次 Z 轴角度 */
+static uint8_t hwtYawReady = 0;                           /**< Z 轴角度是否已初始化 */
 
 /**
  * @brief  低字节在前，高字节在后，合成为有符号 16 位数据
@@ -86,6 +90,36 @@ static uint8_t HWT101_Checksum(const uint8_t *buf)
 }
 
 /**
+ * @brief  根据 Z 轴角度突变更新累计圈数
+ * @param  yaw  当前 Z 轴角度，单位 deg
+ * @return 无
+ */
+static void HWT101_UpdateLapCount(float yaw)
+{
+	/* 首帧只记录角度基准，不参与圈数判断 */
+	if (hwtYawReady == 0U)
+	{
+		hwtLastYaw = yaw;
+		hwtYawReady = 1U;
+		return;
+	}
+
+	/* 判断 +180 到 -180 的正向跨界 */
+	if ((hwtLastYaw > HWT101_LAP_JUMP_DEG) && (yaw < -HWT101_LAP_JUMP_DEG))
+	{
+		hwtLapCount++;
+	}
+	/* 判断 -180 到 +180 的反向跨界 */
+	else if ((hwtLastYaw < -HWT101_LAP_JUMP_DEG) && (yaw > HWT101_LAP_JUMP_DEG))
+	{
+		hwtLapCount--;
+	}
+
+	/* 保存本帧角度，供下一帧比较 */
+	hwtLastYaw = yaw;
+}
+
+/**
  * @brief  校验并解析完整 11 字节帧
  * @param  buf  11 字节帧缓存
  * @note   校验失败或 TYPE 不支持时静默丢弃，不更新 hwt101Data。
@@ -110,10 +144,12 @@ static void HWT101_ParseFrame(const uint8_t *buf)
 	{
 		int16_t rawYaw = HWT101_ToInt16(buf[6], buf[7]);
 		uint16_t version = (uint16_t)(((uint16_t)buf[9] << 8) | buf[8]);
+		float yaw = (float)rawYaw / 32768.0f * 180.0f;
 
 		__disable_irq();
+		HWT101_UpdateLapCount(yaw);
 		hwt101Data.rawYaw = rawYaw;
-		hwt101Data.yaw = (float)rawYaw / 32768.0f * 180.0f;
+		hwt101Data.yaw = yaw;
 		hwt101Data.version = version;
 		__enable_irq();
 	}
@@ -243,6 +279,33 @@ uint16_t HWT101_GetVersion(void)
 }
 
 /**
+ * @brief  读取 Z 轴累计圈数
+ * @return 累计圈数，正数表示正向圈数，负数表示反向圈数
+ */
+int32_t HWT101_GetLapCount(void)
+{
+	int32_t val;
+
+	__disable_irq();
+	val = hwtLapCount;
+	__enable_irq();
+
+	return val;
+}
+
+/**
+ * @brief  清零 Z 轴累计圈数
+ * @return 无
+ */
+void HWT101_ClearLapCount(void)
+{
+	__disable_irq();
+	/* 只清除累计圈数，保留上一帧角度用于继续判断跨界 */
+	hwtLapCount = 0;
+	__enable_irq();
+}
+
+/**
  * @brief  设置 Z 轴角度零点并保存
  * @param  huart  HWT101 所连接的 UART 句柄
  * @note   会阻塞等待 200ms + 500ms，主循环上下文调用，不要在中断中调用。
@@ -261,4 +324,9 @@ void HWT101_SetYawZero(UART_HandleTypeDef *huart)
 	system_delay_ms(HWT101_DELAY_ZERO_MS);
 
 	Serial_SendData(huart, hwt101SaveCmd, HWT101_CMD_LENGTH);
+
+	__disable_irq();
+	/* 设置零点后重新建立角度基准，不清除累计圈数 */
+	hwtYawReady = 0U;
+	__enable_irq();
 }
