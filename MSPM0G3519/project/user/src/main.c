@@ -7,6 +7,7 @@
 #include "Gimbal.h"
 #include "Buzzer.h"
 #include "Laser.h"
+#include "HWT101.h"
 // **************************** 代码区域 ****************************
 
 uint16_t tick_ms;
@@ -27,16 +28,28 @@ int main (void)
 	Serial_Init(&huart5);
 	Serial_Init(&huart6);
 	Serial_Init(&huart7);
-	//Task_Motor_Init();
+	Task_Motor_Init();
 	Buzzer_Init();
 	Laser_Init();
+	HWT101_SetYawZero(&huart6);
 	
-	int16_t x,y;
+	Laser_Disable();
+//	Task_Motor_Test();
+//	while(1);
+//	while(1)
+//	{
+//		Laser_Enable();
+//		system_delay_ms(100);
+//		Laser_Disable();
+//		system_delay_ms(100);
+//		
+//	}
     while(true)
     {
+		
 		//通信
 		Task_BLE_Rx();
-		Task_BLE_Tx();
+		//Task_BLE_Tx();
 		//Task_OLED_UI();
 		Task_Screen_Rx();
 		Task_Screen_Tx();
@@ -45,7 +58,9 @@ int main (void)
 		Task_Read_Sensor();			//读取传感器：灰度 TWH101 Cam
 		
 		Task_Line();				//循迹
-		//Task_Motor();				//控制电机
+		//Task_Gimbal();
+		Task_Motor();				//控制电机
+		//Task_Stop();
 		
     }
 }

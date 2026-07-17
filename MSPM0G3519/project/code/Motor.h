@@ -18,7 +18,7 @@
 #define MOTOR_POS_DEG_PER_CNT  (360.0f / 65536.0f)
 
 /* 默认加速度：调用速度/位置命令时使用；0 表示不加减速，直接启动 */
-#define MOTOR_DEFAULT_ACC     0U
+#define MOTOR_DEFAULT_ACC     200U
 
 /* 默认同步标志：0=立即执行命令，1=等待 Emm_V5_Synchronous_motion() 同步触发 */
 #define MOTOR_DEFAULT_SYNC    0U

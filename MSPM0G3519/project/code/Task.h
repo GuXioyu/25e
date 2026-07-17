@@ -30,5 +30,6 @@ void Task_Motor(void);
 //急停任务处理
 void Task_Stop(void);
 
+void Task_Motor_Test(void);
 
 #endif
