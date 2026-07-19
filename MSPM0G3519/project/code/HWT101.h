@@ -69,6 +69,12 @@ float    HWT101_GetYaw(void);
  */
 uint16_t HWT101_GetVersion(void);
 
+//读取 Z 轴累计圈数
+int32_t HWT101_GetLapCount(void);
+
+//清零 Z 轴累计圈数
+void HWT101_ClearLapCount(void);
+
 /**
  * @brief  设置 Z 轴角度零点并保存
  * @param  huart  HWT101 所连接的 UART 句柄

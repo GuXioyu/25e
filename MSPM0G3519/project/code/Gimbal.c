@@ -48,33 +48,31 @@ static PID_t g_x_pid;
 
 /**
  * @brief  从 UART4 读取并解析 `cam,x,y` 格式的坐标帧
- * @param  x 输出图像 x 坐标，范围 0~639，单位：像素
- * @param  y 输出图像 y 坐标，范围 0~359，单位：像素
  * @return 读取到新帧返回 1U；无新帧返回 0U
  * @note   数据格式为[cam,x,y]，例如[cam,320,180]
  */
-static uint8_t Gimbal_ReadXY(uint16_t *x, uint16_t *y)
+uint8_t Gimbal_ReadXY(void)    //读取图像坐标并更新全局坐标
 {
-	if (Serial_GetRxFlag(&huart4))
+	if (Serial_GetRxFlag(&huart4) == 0)    //检测 UART4 是否收到完整坐标帧
     {
-        char *Tag = strtok((char *)Serial_GetRxPacket(&huart4), ",");
-        if (Tag != NULL && strcmp(Tag, "cam") == 0)
+        char *Tag = strtok((char *)Serial_GetRxPacket(&huart4), ",");    //解析数据帧标签
+        if (Tag != NULL && strcmp(Tag, "cam") == 0)    //确认当前帧为视觉坐标帧
         {
-            char *Value1 = strtok(NULL, ", ");
-            char *Value2 = strtok(NULL, ", ");
-            if (Value1 != NULL && Value2 != NULL)
+            char *Value1 = strtok(NULL, ", ");    //解析 X 坐标字符串
+            char *Value2 = strtok(NULL, ", ");    //解析 Y 坐标字符串
+            if (Value1 != NULL && Value2 != NULL)    //确认坐标字段完整
             {
-                int IntValue1 = atof(Value1);
-                *x = IntValue1;
+                int IntValue1 = atof(Value1);    //转换 X 坐标数值
+                gimbal_x = IntValue1;            //更新全局 X 坐标
 
-                int IntValue2 = atof(Value2);
-                *y = IntValue2;
+                int IntValue2 = atof(Value2);    //转换 Y 坐标数值
+                gimbal_y = IntValue2;            //更新全局 Y 坐标
 
-                return 1U;
+                return 1U;                       //通知调用方坐标已更新
             }
         }
     }
-    return 0U;
+    return 0U;                                   //没有有效新坐标
 }
 
 /**
@@ -83,7 +81,7 @@ static uint8_t Gimbal_ReadXY(uint16_t *x, uint16_t *y)
  */
 static void Gimbal_GetImage(void)
 {
-    if (Gimbal_ReadXY(&gimbal_x, &gimbal_y) == 0U)   //没有检测到目标
+    if (Gimbal_ReadXY() == 0U)   //没有检测到目标
     {
         gimbal_image_valid = 0U;
         return;

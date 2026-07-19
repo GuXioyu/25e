@@ -4,6 +4,7 @@
 #include "zf_common_headfile.h"
 #include "GraySensor.h"
 #include "My_Uart.h"
+#include "HWT101.h"
 
 /* 8 路灰度传感器的通道数量。 */
 #define LINE_SENSOR_COUNT (8U)
@@ -17,11 +18,21 @@
  */
 typedef enum
 {
-    LINE_MODE_IDLE = 0, /* 尚未获得有效循迹数据。 */
-    LINE_MODE_LOST,     /* 8 路传感器均未检测到黑线。 */
-    LINE_MODE_STRAIGHT, /* 检测到 1～2 路黑线，可执行常规循迹。 */
-    LINE_MODE_FORK      /* 检测到 3 路及以上黑线，判定为岔道。 */
-} LineMode_t;
+    LINE_STATE_IDLE = 0, /* 尚未获得有效循迹数据。 */
+    LINE_STATE_LOST,     /* 8 路传感器均未检测到黑线。 */
+    LINE_STATE_STRAIGHT, /* 检测到 1～2 路黑线，可执行常规循迹。 */
+    LINE_STATE_FORK      /* 检测到 3 路及以上黑线，判定为岔道。 */
+} LineState_t;
+
+/**
+ * @brief 岔道类型。
+ */
+typedef enum
+{
+    LINE_FORK_TYPE_IDLE = 0,              /* 默认状态，当前未识别到具体岔道类型。 */
+    LINE_FORK_TYPE_LEFT_RIGHT_ANGLE = 1,  /* 左直角岔道。 */
+    LINE_FORK_TYPE_RIGHT_RIGHT_ANGLE = 2  /* 右直角岔道。 */
+} LineForkType_t;
 
 /**
  * @brief 执行一次循迹数据处理。
@@ -48,3 +59,29 @@ int16_t Line_GetSpeed(uint8_t motor);
 void Line_Timer(void);
 
 #endif /* LINE_H */
+
+/*
+当前每 10ms 执行一次 Line()，逻辑如下：
+读取 8 路灰度和当前偏航角，1 表示检测到黑线。
+
+1正常循迹：
+黑线为单段且数量 1~2，进入 LINE_STATE_STRAIGHT。
+根据黑线平均位置计算左右轮速度。
+
+2短时丢线：
+黑线数量为 0 时开始计数。
+未满 100ms 时，若之前处于直线循迹，会保留原来的 line_location 和直线状态，继续按上一帧方向循迹。
+连续 100ms 无黑线，进入 LINE_STATE_LOST，两轮速度置 0。
+
+3岔道识别：
+黑线超过 2 路，或出现多个黑线段，进入 LINE_STATE_FORK。
+左直角条件是 0、1、2 号传感器为黑线，5、6、7 号为白底；3、4 号当前不参与判断。
+识别成功后锁定起始角度，左轮输出 25，右轮输出 80。
+
+4左转完成：
+计算当前角度相对起始角度的差，并处理 -180°/+180° 回绕。
+只有角度差达到 <= -85° 才认为左转完成，清除岔道类型并置为 IDLE。
+
+5误识别岔道：
+未满足左直角条件时，直接回到 LINE_STATE_STRAIGHT，根据当前黑线平均位置继续普通循迹，不会停车。
+*/

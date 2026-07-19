@@ -12,20 +12,24 @@
 #include "Line.h"
 #include "Gimbal.h"
 
-// 初始化
+/* ==================== Init ==================== */
 void Task_Motor_Init(void);
-
-// 定时
+/* ==================== Timer ==================== */
 void Task_Timer(void);
-// 任务
+/* ==================== 通信 ==================== */
 void Task_OLED_UI(void);
-void Task_BLE(void);
+void Task_BLE_Rx(void);
+void Task_BLE_Tx(void);
 void Task_Screen_Rx(void);
 void Task_Screen_Tx(void);
-
 void Task_Read_Sensor(void);
-void Task_Line_Motor(void);
+/* ==================== Task ==================== */
+void Task_Line(void);
+void Task_Gimbal(void);
 void Task_Motor(void);
+//急停任务处理
+void Task_Stop(void);
 
+void Task_Motor_Test(void);
 
 #endif

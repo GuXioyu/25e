@@ -15,7 +15,7 @@
 void Gimbal_Init(void);
 
 /**
- * @brief  执行一次云台数据处理
+ * @brief  执行一次云台数据处理,不处理数据
  * @note   仅在 Gimbal_Timer() 产生采样请求后处理一次
  * @param  无
  * @return 无
@@ -35,6 +35,13 @@ uint8_t Gimbal_GetFlag(void);
  * @return 对应轴目标速度；参数无效时返回 0
  */
 float Gimbal_GetSpeed(uint8_t motor);
+
+/**
+ * @brief  从 UART4 读取并解析 `cam,x,y` 格式的坐标帧
+ * @return 读取到新帧返回 1U；无新帧返回 0U
+ * @note   数据格式为[cam,x,y]，例如[cam,320,180]
+ */
+uint8_t Gimbal_ReadXY(void);
 
 /**
  * @brief  获取图像坐标
