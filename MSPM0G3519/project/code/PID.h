@@ -5,7 +5,7 @@
 #include <math.h>
 
 /*积分策略*/
-/*intmode = PID_INTMODE_DATA_NORMAL | PID_INTMODE_SEPARATION | PID_INTMODE_LIMIT*/
+/*intmode = PID_INTMODE_DATA_NORMAL | PID_INTMODE_LIMIT*/
 #define PID_INTMODE_DATA_NORMAL        (0x01U)  /* 正常积分 */
 #define PID_INTMODE_DATA_VAR_NONLINEAR (0x02U)  /* 变速非线性积分 */
 #define PID_INTMODE_SEPARATION         (0x04U)  /* 积分分离 */
@@ -46,14 +46,6 @@ typedef struct {
 	float out_deadzone;
 } PID_t;
 
-void PID_Init(PID_t *p,
-			  float kp,
-			  float ki,
-			  float kd,
-			  float outmin,
-			  float outmax,
-			  float error_intmin,
-			  float error_intmax);
 void PID_Update(PID_t *p);
 
 #endif

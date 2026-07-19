@@ -135,20 +135,15 @@ void Motor_Init(Motor_t *motor, uint8_t addr, uint8_t dir_reverse)
 /**
  * @brief 最近一次输入值缓存（多通道）。
  */
-static int32_t Motor_LastCompareValue[MOTOR_COMPARE_CHANNELS];
+static int32_t Motor_LastCompareValue[MOTOR_COMPARE_CHANNELS] = {0}; /* 各通道上次比较值，初始值为 0 */
 
 /**
- * @brief 每个通道的有效位标志（1=已保存历史值，0=无历史值）。
- */
-static uint8_t Motor_LastCompareValid[MOTOR_COMPARE_CHANNELS] = {0};
-
-/**
- * @brief 比较指定通道最近两次输入值。
+ * @brief 比较指定通道本次输入值与历史值，并保存本次输入值。
  * @param channel 通道编号，取值范围 0..(MOTOR_COMPARE_CHANNELS-1)。
  * @param value 本次输入值。
- * @return 与上一次相同返回 1，不同返回 0；当 channel 越界或为首次调用时返回 0。
+ * @return 本次值不同于历史值返回 1，相同或 channel 越界返回 0。
  */
-uint8_t Motor_CompareLastValue(uint8_t channel, int32_t value)
+uint8_t Motor_CompareLastValue(uint8_t channel, int32_t value) /* 判断通道输入值是否发生变化 */
 {
 	uint8_t result = 0U;
 
@@ -157,15 +152,8 @@ uint8_t Motor_CompareLastValue(uint8_t channel, int32_t value)
 		return 0U; /* 无效通道直接返回 0，不改变任何历史值 */
 	}
 
-	if (Motor_LastCompareValid[channel] == 0U)
-	{
-		Motor_LastCompareValid[channel] = 1U;
-		Motor_LastCompareValue[channel] = value;
-		return 0U;
-	}
-
-	result = (value == Motor_LastCompareValue[channel]) ? 1U : 0U;
-	Motor_LastCompareValue[channel] = value;
+	result = (value != Motor_LastCompareValue[channel]) ? 1U : 0U; /* 与初始值或上次值不同则通知调用方 */
+	Motor_LastCompareValue[channel] = value; /* 保存本次值作为下次比较基准 */
 
 	return result;
 }
@@ -200,6 +188,21 @@ void Motor_Stop(Motor_t *motor)
 	Emm_V5_Stop_Now(motor->addr, MOTOR_DEFAULT_SYNC);
 	motor->mode = MOTOR_MODE_STOP;
 	motor->target_speed = 0;
+}
+
+/**
+ * @brief 将电机当前位置设为单圈回零零点并保存。
+ * @param motor 电机对象。
+ * @return 无。
+ */
+void Motor_SetZero(Motor_t *motor) /* 设置并保存电机单圈回零零点 */
+{
+	if (motor == NULL) /* 检查电机对象是否有效 */
+	{
+		return; /* 空对象不发送设零命令 */
+	}
+
+	Emm_V5_Origin_Set_O(motor->addr, 1U); /* 将当前位置设为零点并保存至驱动器 */
 }
 
 /**

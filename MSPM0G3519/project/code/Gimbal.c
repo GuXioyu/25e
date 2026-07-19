@@ -10,9 +10,11 @@
 #include "My_Uart.h"
 #include "PID.h"
 #include "zf_common_headfile.h"
+#include "Cam.h"
+#include "laser.h"
 
 /* 云台数据处理周期，单位为毫秒 */
-#define GIMBAL_SAMPLE_PERIOD_MS (10U)
+#define GIMBAL_TIMER (10U)
 
 /* 图像参数 */
 #define ImgWidth      640U                /* 视觉图像宽度，单位：像素 */
@@ -29,197 +31,244 @@
 #define MaxStepDeg    2.0f                /* 两轴单帧最大角度增量，单位：度 */
 
 /* 定时器中断置位、主循环读取的采样请求标志 */
-static volatile uint8_t gimbal_timer_flag;
+uint8_t gimbal_aim1_timer_flag;
+uint8_t gimbal_aim2_timer_flag;
+uint8_t gimbal_aim3_timer_flag;
+
 
 /* 云台模块已完成一次数据处理的通知标志 */
-static uint8_t gimbal_flag;
+uint8_t gimbal_flag;
 
 /* 当前计算出的云台两轴目标速度 */
-static float gimbal_speed_yaw;
-static float gimbal_speed_pitch;
+float gimbal_speed_yaw;
+float gimbal_speed_pitch;
 
 /* 当前帧的图像坐标 */
-static uint16_t gimbal_x;
-static uint16_t gimbal_y;
-static uint8_t gimbal_image_valid;
+uint16_t gimbal_target_x;
+uint16_t gimbal_target_y;
+uint16_t gimbal_laser_x;
+uint16_t gimbal_laser_y;
+
 
 /* X 轴图像坐标闭环 PID 状态 */
-static PID_t g_x_pid;
+PID_t gimbal_aim1_x_PID = 
+{
+	.kp = 0.1,
+	.ki = 0.001,
+	.kd = 0.1,
+	
+	.target = ImgWidth/2.0,
+	
+	.intmode = PID_INTMODE_DATA_NORMAL | PID_INTMODE_LIMIT,
+	.error_intmax = 100,
+	.error_intmin = 100,
+	
+	.difmode = PID_DIFMODE_NORMAL,
+	
+	.outmax = 10,
+	.outmin = 10,
+	
+	 
+};  
+PID_t gimbal_aim1_y_PID;
+
+float aim_x_kp, aim_x_ki, aim_x_kd;
+float aim_x_kp, aim_x_ki, aim_x_kd;
+
+PID_t g_x_pid;
 
 /**
- * @brief  从 UART4 读取并解析 `cam,x,y` 格式的坐标帧
- * @return 读取到新帧返回 1U；无新帧返回 0U
- * @note   数据格式为[cam,x,y]，例如[cam,320,180]
+ * @brief  
+ * @note   
  */
-uint8_t Gimbal_ReadXY(void)    //读取图像坐标并更新全局坐标
+uint8_t Gimbal_GetImage(void)
 {
-	if (Serial_GetRxFlag(&huart4) == 0)    //检测 UART4 是否收到完整坐标帧
-    {
-        char *Tag = strtok((char *)Serial_GetRxPacket(&huart4), ",");    //解析数据帧标签
-        if (Tag != NULL && strcmp(Tag, "cam") == 0)    //确认当前帧为视觉坐标帧
-        {
-            char *Value1 = strtok(NULL, ", ");    //解析 X 坐标字符串
-            char *Value2 = strtok(NULL, ", ");    //解析 Y 坐标字符串
-            if (Value1 != NULL && Value2 != NULL)    //确认坐标字段完整
-            {
-                int IntValue1 = atof(Value1);    //转换 X 坐标数值
-                gimbal_x = IntValue1;            //更新全局 X 坐标
-
-                int IntValue2 = atof(Value2);    //转换 Y 坐标数值
-                gimbal_y = IntValue2;            //更新全局 Y 坐标
-
-                return 1U;                       //通知调用方坐标已更新
-            }
-        }
-    }
-    return 0U;                                   //没有有效新坐标
+	if (Cam_GetFlag() == 0)return 0;
+	else 
+	{
+		gimbal_target_x = Cam_GetXY(CAM_X, CAM_TARGERT);
+		gimbal_target_y = Cam_GetXY(CAM_Y, CAM_TARGERT);
+		gimbal_laser_x = Cam_GetXY(CAM_X, CAM_LASER);
+		gimbal_laser_y = Cam_GetXY(CAM_Y, CAM_LASER);
+		return 1;
+	}
 }
 
-/**
- * @brief  读取最新一帧图像坐标
- * @note   串口模块通过 UART4 异步更新数据，因此本次使用的是已解析完成的最新帧
- */
-static void Gimbal_GetImage(void)
+///**
+// * @brief  将 Y 轴像素误差换算为受限的开环角度增量
+// * @param  error_y 目标相对图像中心的 Y 轴偏差，单位：像素
+// * @return 限制在 ±MaxStepDeg 内的角度增量，单位：度
+// */
+//static float Gimbal_GetYStep(int16_t error_y)
+//{
+//    float step_deg;                         /* Y 轴当前帧需要增加的目标角度，单位：度 */
+
+//    step_deg = (float)error_y * YDegPerPx;
+
+//    /* 限制角度增量范围 */
+//    if (step_deg > MaxStepDeg)
+//    {
+//        step_deg = MaxStepDeg;
+//    }
+//    else if (step_deg < -MaxStepDeg)
+//    {
+//        step_deg = -MaxStepDeg;
+//    }
+
+//    return step_deg;
+//}
+
+///**
+// * @brief  根据图像坐标计算云台两轴目标速度
+// */
+//static void Gimbal_CalculateSpeed(void)
+//{
+//    int16_t error_x;                        /* 目标相对图像中心的 X 轴偏差，单位：像素 */
+//    int16_t error_y;                        /* 目标相对图像中心的 Y 轴偏差，单位：像素 */
+
+//    /* 没有有效图像数据时，清零速度 */
+//    if (gimbal_image_valid == 0U)
+//    {
+//        gimbal_speed_yaw = 0.0f;
+//        gimbal_speed_pitch = 0.0f;
+//        return;
+//    }
+
+//    /* 未检测到目标时清零速度和 PID 状态 */
+//    if ((gimbal_x == 0U) && (gimbal_y == 0U))
+//    {
+//        g_x_pid.actual_current = (float)ImgWidth / 2.0f;
+//        g_x_pid.actual_past = (float)ImgWidth / 2.0f;
+//        g_x_pid.error_current = 0.0f;
+//        g_x_pid.error_past = 0.0f;
+//        g_x_pid.error_int = 0.0f;
+//        g_x_pid.out = 0.0f;
+//        gimbal_speed_yaw = 0.0f;
+//        gimbal_speed_pitch = 0.0f;
+//        return;
+//    }
+
+//    /* 计算目标相对图像中心的偏差 */
+//    error_x = (int16_t)gimbal_x - (int16_t)(ImgWidth / 2U);
+//    error_y = (int16_t)gimbal_y - (int16_t)(ImgHeight / 2U);
+
+//    /* X 轴 PID 闭环计算 */
+//    g_x_pid.actual_current = (float)gimbal_x;
+//    PID_Update(&g_x_pid);
+
+//    /* 仅在 X 轴偏差超出死区时更新 Yaw 速度 */
+//    if ((error_x > DeadbandPx) || (error_x < -DeadbandPx))
+//    {
+//        gimbal_speed_yaw = g_x_pid.out * -1.0f;
+//    }
+//    else
+//    {
+//        g_x_pid.error_int = 0.0f;
+//        g_x_pid.out = 0.0f;
+//        gimbal_speed_yaw = 0.0f;
+//    }
+
+//    /* 仅在 Y 轴偏差超出死区时更新 Pitch 速度 */
+//    if ((error_y > DeadbandPx) || (error_y < -DeadbandPx))
+//    {
+//        gimbal_speed_pitch = Gimbal_GetYStep(error_y);
+//    }
+//    else
+//    {
+//        gimbal_speed_pitch = 0.0f;
+//    }
+//}
+
+
+
+/* ==================== Parent ==================== */
+uint8_t Gimbal_Aim1(uint8_t mode)// 定->定
 {
-    if (Gimbal_ReadXY() == 0U)   //没有检测到目标
+	static uint8_t gimbal_aim_state = 0U; 			//状态机
+	static uint8_t gimbal_aim_find_count = 0U;		//发现目标计数器
+	static uint8_t gimbal_aim_error_count = 0U;		//允许误差计数器
+	
+	if (gimbal_aim1_timer_flag == 0)return 0;		//定时
+    gimbal_aim1_timer_flag = 0;
+
+    switch (gimbal_aim_state)
     {
-        gimbal_image_valid = 0U;
-        return;
+		 case 0U:// 转一圈
+			if (mode == 1)
+				gimbal_aim_state = 100;
+			else if (mode == 2)
+				gimbal_aim_state = 1;
+        case 100U:// 转一圈
+            gimbal_speed_yaw = 20.0f;
+            gimbal_speed_pitch = 0.0f;
+            gimbal_flag = 1U;
+            gimbal_aim_state = 1U;
+            break;
+        case 1U: //寻找靶子
+			if (Gimbal_GetImage() == 1)
+				gimbal_aim_find_count++;
+			else 
+				gimbal_aim_find_count = 0;
+			if (gimbal_aim_find_count >= 5) //连续有5帧数据，则发现目标
+			{
+				gimbal_aim_find_count = 0;
+				gimbal_aim_state = 2;
+			}
+			break;
+		case 2: //瞄准
+			gimbal_aim1_x_PID.actual_current = gimbal_laser_x;
+			PID_Update(&gimbal_aim1_x_PID);
+			gimbal_speed_yaw = gimbal_aim1_x_PID.out;
+			gimbal_flag = 1;
+			//瞄准成功判定
+			if (gimbal_aim1_x_PID.error_current <= 5)//允许的误差
+				gimbal_aim_error_count++;
+			else 
+				gimbal_aim_error_count = 0;
+			if (gimbal_aim_error_count >= 5)
+			{
+				gimbal_aim_error_count = 0;
+				gimbal_aim_state = 3;
+			}
+			break;
+		case 3://fire
+			gimbal_aim_state = 0;
+			return 1;
     }
-    gimbal_image_valid = 1U;                               //数据帧有效
+	return 0;
+}
+void Gimbal_Aim2(void)// 动->定
+{
+	if (gimbal_aim2_timer_flag == 0)return;		//定时
+    gimbal_aim2_timer_flag = 0;
+	
+	if(0)//直线
+	{
+		
+	}
+	
+	else if (0)//转弯
+	{
+		
+	}
+}
+void Gimbal_Aim3(void)// 动->动
+{
+	if (gimbal_aim2_timer_flag == 0)return;		//定时
+    gimbal_aim2_timer_flag = 0;
+	
+	if(0)//直线
+	{
+		
+	}
+	else if (0)//转弯 
+	{
+		
+	}
+	
 }
 
-/**
- * @brief  将 Y 轴像素误差换算为受限的开环角度增量
- * @param  error_y 目标相对图像中心的 Y 轴偏差，单位：像素
- * @return 限制在 ±MaxStepDeg 内的角度增量，单位：度
- */
-static float Gimbal_GetYStep(int16_t error_y)
-{
-    float step_deg;                         /* Y 轴当前帧需要增加的目标角度，单位：度 */
-
-    step_deg = (float)error_y * YDegPerPx;
-
-    /* 限制角度增量范围 */
-    if (step_deg > MaxStepDeg)
-    {
-        step_deg = MaxStepDeg;
-    }
-    else if (step_deg < -MaxStepDeg)
-    {
-        step_deg = -MaxStepDeg;
-    }
-
-    return step_deg;
-}
-
-/**
- * @brief  根据图像坐标计算云台两轴目标速度
- */
-static void Gimbal_CalculateSpeed(void)
-{
-    int16_t error_x;                        /* 目标相对图像中心的 X 轴偏差，单位：像素 */
-    int16_t error_y;                        /* 目标相对图像中心的 Y 轴偏差，单位：像素 */
-
-    /* 没有有效图像数据时，清零速度 */
-    if (gimbal_image_valid == 0U)
-    {
-        gimbal_speed_yaw = 0.0f;
-        gimbal_speed_pitch = 0.0f;
-        return;
-    }
-
-    /* 未检测到目标时清零速度和 PID 状态 */
-    if ((gimbal_x == 0U) && (gimbal_y == 0U))
-    {
-        g_x_pid.actual_current = (float)ImgWidth / 2.0f;
-        g_x_pid.actual_past = (float)ImgWidth / 2.0f;
-        g_x_pid.error_current = 0.0f;
-        g_x_pid.error_past = 0.0f;
-        g_x_pid.error_int = 0.0f;
-        g_x_pid.out = 0.0f;
-        gimbal_speed_yaw = 0.0f;
-        gimbal_speed_pitch = 0.0f;
-        return;
-    }
-
-    /* 计算目标相对图像中心的偏差 */
-    error_x = (int16_t)gimbal_x - (int16_t)(ImgWidth / 2U);
-    error_y = (int16_t)gimbal_y - (int16_t)(ImgHeight / 2U);
-
-    /* X 轴 PID 闭环计算 */
-    g_x_pid.actual_current = (float)gimbal_x;
-    PID_Update(&g_x_pid);
-
-    /* 仅在 X 轴偏差超出死区时更新 Yaw 速度 */
-    if ((error_x > DeadbandPx) || (error_x < -DeadbandPx))
-    {
-        gimbal_speed_yaw = g_x_pid.out * -1.0f;
-    }
-    else
-    {
-        g_x_pid.error_int = 0.0f;
-        g_x_pid.out = 0.0f;
-        gimbal_speed_yaw = 0.0f;
-    }
-
-    /* 仅在 Y 轴偏差超出死区时更新 Pitch 速度 */
-    if ((error_y > DeadbandPx) || (error_y < -DeadbandPx))
-    {
-        gimbal_speed_pitch = Gimbal_GetYStep(error_y);
-    }
-    else
-    {
-        gimbal_speed_pitch = 0.0f;
-    }
-}
-
-/**
- * @brief  初始化云台 PID 控制器
- * @param  无
- * @return 无
- */
-void Gimbal_Init(void)
-{
-    /* 初始化 X 轴 PID 参数和内部状态 */
-    PID_Init(&g_x_pid,
-             XKp,
-             XKi,
-             XKd,
-             -MaxStepDeg,
-             MaxStepDeg,
-             -MaxStepDeg,
-             MaxStepDeg);
-
-    /* X 轴闭环目标为图像宽度中心 */
-    g_x_pid.target = (float)ImgWidth / 2.0f;
-
-    /* PID 内部使用 2 像素输出死区 */
-    g_x_pid.out_deadzone = (float)DeadbandPx;
-}
-
-/**
- * @brief  在采样周期到达时完成一次云台计算
- * @param  无
- * @return 无
- */
-void Gimbal(void)
-{
-    /* 检查定时标志位 */
-    if (gimbal_timer_flag == 0U)
-    {
-        return;
-    }
-
-    gimbal_timer_flag = 0U;         //标志位清0
-
-    Gimbal_GetImage();              
-
-    Gimbal_CalculateSpeed();
-
-    gimbal_flag = 1U;
-}
-
+/* ==================== 通信 ==================== */
 /**
  * @brief  获取并清除一次云台结果通知
  * @param  无
@@ -256,27 +305,30 @@ float Gimbal_GetSpeed(uint8_t motor)
 
     return 0.0f;
 }
-
+/* ==================== Init ==================== */
 /**
- * @brief  获取图像坐标
- * @param  axis 1 返回 x 坐标，2 返回 y 坐标
- * @return 对应坐标值；参数无效时返回 0
+ * @brief  初始化云台 PID 控制器
+ * @param  无
+ * @return 无
  */
-uint16_t Gimbal_GetXY(uint8_t axis)
-{
-    if (axis == 1U)
-    {
-        return gimbal_x;
-    }
+//void Gimbal_Init(void)
+//{
+//    /* 初始化 X 轴 PID 参数和内部状态 */
+//    PID_Init(&g_x_pid, 
+//             XKp,XKi,XKd,
+//             -MaxStepDeg,
+//             MaxStepDeg,
+//             -MaxStepDeg,
+//             MaxStepDeg);
 
-    if (axis == 2U)
-    {
-        return gimbal_y;
-    }
+//    /* X 轴闭环目标为图像宽度中心 */
+//    g_x_pid.target = (float)ImgWidth / 2.0f;
 
-    return 0U;
-}
+//    /* PID 内部使用 2 像素输出死区 */
+//    g_x_pid.out_deadzone = (float)DeadbandPx;
+//}
 
+/* ==================== Timer ==================== */
 /**
  * @brief  1 ms 定时器节拍函数，每 10 ms 请求一次云台处理
  * @param  无
@@ -287,9 +339,11 @@ void Gimbal_Timer(void)
     static uint8_t sample_count;
 
     sample_count++;
-    if (sample_count >= GIMBAL_SAMPLE_PERIOD_MS)
+    if (sample_count >= GIMBAL_TIMER)
     {
         sample_count = 0U;
-        gimbal_timer_flag = 1U;
+		gimbal_aim1_timer_flag = 1U;
+		gimbal_aim2_timer_flag = 1U;
+		gimbal_aim3_timer_flag = 1U;
     }
 }

@@ -4,13 +4,17 @@
 #include "zf_common_headfile.h"
 #include "My_Uart.h"
 #include "My_Timer.h"
-#include "OLED.h"
-#include "GraySensor.h"
 #include "PID.h"
 #include "Motor.h"
+#include "OLED.h"
+#include "GraySensor.h"
 #include "HWT101.h"
+#include "Laser.h"
 #include "Line.h"
 #include "Gimbal.h"
+#include "buzzer.h"
+#include "Cam.h"
+
 
 /* ==================== Init ==================== */
 void Task_Motor_Init(void);

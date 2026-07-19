@@ -4,8 +4,10 @@ extern uint16_t tick_ms;
 extern uint8_t mode;
 
 uint8_t mode1_N;					//A1：目标圈数
-uint8_t mode1_line_flag;			
+uint8_t mode1_line_flag;	
+uint8_t mode2;
 uint8_t mode2_gimbal_flag;
+uint8_t mode3;					
 uint8_t mode3_N;					//B:目标圈数
 uint8_t mode3_line_flag;
 uint8_t mode3_gimbal_flag;
@@ -17,20 +19,22 @@ uint8_t motor_flag[4]; 												// 动作标志位
 uint8_t stop_flag;
 uint8_t para_flag;
 
-Motor_t motor_left, motor_right, motor_yow, motor_pitch;
+Motor_t motor_all;
+Motor_t motor_left, motor_right, motor_yaw, motor_pitch;
 
 int16_t ang[4];
 int16_t speed_left, speed_right, speed_yaw, speed_pitch;
+float angle_yaw, angle_pitch;			// 云台角度目标，保留 Gimbal_GetSpeed 的浮点结果
 
-uint16_t gray;				// 灰度数据
-uint16_t gray_analog[8];
+uint16_t gray_analog[8];	// 灰度数据
 uint8_t  gray_digital[8];
 
-uint16_t x,y;
+uint16_t target_x,target_y;
+uint16_t laser_x,laser_y;
 
 int8_t laps;		//	已转圈数
 
-float angle;
+float angle;		// hwt101
 
 /* ==================== Timer ==================== */
 /**
@@ -65,7 +69,7 @@ void Task_Timer(void)
 	{
 		count_100ms = 0U;
 		OLED_timer_flag = 1;
-		 BLE_Tx_timer_flag = 1;
+		BLE_Tx_timer_flag = 1;
 		screen_Tx_timer_flag = 1;
 	}
 	Line_Timer();
@@ -111,10 +115,10 @@ void Task_BLE_Tx(void)
 	BLE_Tx_timer_flag = 0;
 
 //	// 发送姿态角数据
-//	Serial_Printf(&huart5, "%d, %d, %d, %d\n",
-//							tick_ms, mode, speed_left, speed_right);
-	Serial_Printf(&huart5, "%d, %d %d %d\n",
-							mode1_line_flag, para_flag, speed_left, speed_right);
+	Serial_Printf(&huart5, "t=%d, m=%d, m2=%d, m3=%d\n",
+							tick_ms, mode, mode2, mode3);
+	Serial_Printf(&huart5, "ay=%f, ap=%f\n",
+							angle_yaw, angle_pitch);
 //	Serial_Printf(&huart5, "%d, %d, %d, %d, %d, %d, %d, %d, %d\n",
 //							tick_ms, gray_analog[0], gray_analog[1], gray_analog[2], gray_analog[3],
 //							gray_analog[4], gray_analog[5], gray_analog[6], gray_analog[7]);
@@ -134,7 +138,7 @@ void Task_BLE_Rx(void)
 	if (Tag != NULL && strcmp(Tag, "key") == 0)
 	{
 		char *name = strtok(NULL, ", ");
-		if (name != NULL && strcmp(Tag, "stop") == 0)
+		if (name != NULL && strcmp(name, "stop") == 0)
 			stop_flag = 1;
 	}
 	
@@ -154,7 +158,7 @@ void Task_Screen_Tx(void)
 	screen_Tx_timer_flag = 0;
 	
 	if (para_flag)
-	{
+	{	//while(1)Serial_Printf(&huart5, "111");
 		// 发送灰度传感器数据到串口屏
 		Serial_Printf(&huart7, "t0.txt=\"Gray:%d %d %d %d %d %d %d %d\"\xff\xff\xff",
 								gray_digital[0], gray_digital[1], gray_digital[2], gray_digital[3],
@@ -189,6 +193,8 @@ void Task_Screen_Rx(void)
 				mode = 2;
 			else if (strcmp(Value1, "mode3") == 0)
 				mode = 3;
+			else if (strcmp(Value1, "mode4") == 0)
+				mode = 4;
 
 			if (strcmp(Value1, "para") == 0)
 				para_flag = 1;
@@ -208,38 +214,102 @@ void Task_Screen_Rx(void)
 				mode1_N = IntValue1;	
 				mode1_line_flag = 1;
 				para_flag = 1;
+				//while(1)Serial_Printf(&huart5, "111");
 			}		
 		}
 	}	
 	else if (Tag != NULL && strcmp(Tag, "mode2") == 0)
 	{
 		char *name = strtok(NULL, ", ");
-		
+		if (name != NULL && strcmp(name, "lock") == 0)
+		{
+			mode2 = 1;
+			para_flag = 1;
+		}
+		else if (name != NULL && strcmp(name, "auto") == 0)
+		{
+			mode2 = 2;
+			mode2_gimbal_flag = 1;
+			para_flag = 1;
+			//while(1)Serial_Printf(&huart5, "111");
+		}	
 	}
 	else if (Tag != NULL && strcmp(Tag, "mode3") == 0)
 	{
 		char *name = strtok(NULL, ", ");
-		if (name != NULL && strcmp(Tag, "N") == 0)
+		if (name != NULL && strcmp(name, "B1") == 0)
 		{
-			char *Value1 = strtok(NULL, ", ");
-			if (Value1 != NULL)
-			{
-				int IntValue1 = atof(Value1);
-				mode3_N = IntValue1;	
-			}		
+			mode3 = 1;
+			mode3_N = 1;
+			para_flag = 1;
 		}
-		else if (name != NULL && strcmp(Tag, "OK") == 0)
+		else if (name != NULL && strcmp(name, "B2") == 0)
 		{
-			mode3_line_flag = 1;
+			mode3 = 2;
+			mode3_N = 2;
+			para_flag = 1;
+		}
+		else if (name != NULL && strcmp(name, "B3") == 0)
+		{
+			mode3 = 3;
+			mode3_N = 1;
+			para_flag = 1;
 		}
 	}	
+	else if (Tag != NULL && strcmp(Tag, "mode4") == 0)
+	{
+		char *name = strtok(NULL, ", ");
+		if (name != NULL && strcmp(name, "laser") == 0)
+		{
+			char *condition = strtok(NULL, ", ");
+			if (condition != NULL && strcmp(condition, "on") == 0)
+				Laser_Enable();
+			else if (condition != NULL && strcmp(condition, "off") == 0)
+				Laser_Disable();
+		}
+		else if (name != NULL && strcmp(name, "buzzer") == 0)
+		{
+			char *condition = strtok(NULL, ", ");
+			if (condition != NULL && strcmp(condition, "on") == 0)
+				Buzzer_Enable();
+			else if (condition != NULL && strcmp(condition, "off") == 0)
+				Buzzer_Disable();
+		}
+		else if (name != NULL && strcmp(name, "angle") == 0)
+		{
+			char *Value1 = strtok(NULL, ", ");
+			char *Value2 = strtok(NULL, ", ");
+			if (Value1 != NULL && Value2 != NULL)
+			{
+				float FloatValue1 = atof(Value1);
+				angle_yaw = FloatValue1;	
+				motor_flag[2] = 2;
+				
+				float FloatValue2 = atof(Value2);
+				angle_pitch = FloatValue2;	
+				motor_flag[3] = 2;
+				//while(1)Serial_Printf(&huart5, "111");
+			}				
+		}
+		else if (name != NULL && strcmp(name, "zero1") == 0)
+		{
+			Motor_SetZero(&motor_yaw);
+		}
+		else if (name != NULL && strcmp(name, "zero2") == 0)
+		{
+			Motor_SetZero(&motor_pitch);
+		}
+	}
+	
 	if (mode == 0)
 	{
 		mode1_N = 0;
 		mode1_line_flag = 0;
-		mode3_N = 0;
+		mode2 = 0;
+		mode3 = 0;
 		mode3_line_flag = 0;
 		HWT101_ClearLapCount();
+		//Laser_Disable();
 	}
 }	
 
@@ -266,9 +336,12 @@ void Task_Read_Sensor(void)
 		gray_digital[i] = GraySensor_GetDigital(i);
 	}
 	
-	Gimbal_ReadXY();
-	x = Gimbal_GetXY(1);
-	y = Gimbal_GetXY(1);
+	Cam_ReadXY();
+	target_x = Cam_GetXY(CAM_X, CAM_TARGERT);
+	target_y = Cam_GetXY(CAM_Y, CAM_TARGERT);
+	laser_x = Cam_GetXY(CAM_X, CAM_LASER);
+	laser_y = Cam_GetXY(CAM_Y, CAM_LASER);
+	
 }
 
 /* ==================== Task ==================== */
@@ -294,11 +367,21 @@ void Task_Line(void)
 				motor_flag[1] = 1;
 				speed_right = 0;
 			}
-			
 		break;
 		
 		case 3://mode3循迹
-			
+			if (mode3_line_flag == 0)return;	//开始控制
+			Line();						//更新速度，给Task_Motor
+			if (abs(laps) >= mode3_N && 
+				angle >= -10 && angle <= 10 &&
+				gray_digital[0] == 1 && gray_digital[1] == 1 && gray_digital[3] == 1)
+			{
+				mode = 0;
+				motor_flag[0] = 1;
+				speed_left = 0;
+				motor_flag[1] = 1;
+				speed_right = 0;
+			}
 		break;
 	}
 }
@@ -309,17 +392,38 @@ void Task_Line(void)
  */
 void Task_Gimbal(void)
 {
+	static uint8_t mode2_state;
 	switch (mode)
 	{
 		case 2://mode2瞄准
 			if (mode2_gimbal_flag == 0)return;
-			//瞄准
-			//发射激光
-		break;
+			//自动瞄准状态机
+			switch (mode2_state)
+			{
+				case (0):// 定->定瞄准
+					//while(1)Serial_Printf(&huart5, "333");
+					if (Gimbal_Aim1(mode2) == 1)
+						mode2_state = 1;
+					break;
+				case (1):// 发射激光
+					//while(1)Serial_Printf(&huart5, "444");
+					Laser_Enable();
+					mode2_state = 2;
+					break;
+				case (2):// 等待关闭
+					if (mode != 2)
+					{
+						Laser_Disable();
+						mode2_state = 0;
+					}
+					break;
+			}	
+			
+			break;
 		
 		case 3://mode3瞄准
 			if (mode3_gimbal_flag == 0)return;
-		break;
+			break;
 	}
 	
 }
@@ -333,27 +437,32 @@ void Task_Motor(void)
 	static uint8_t motor_count;
 	static uint8_t motor_send_idx;
 
-	// 循迹速度获取
+	// 循迹速度获取，Line
 	if (Line_GetFlag())
 	{
-		speed_left = Line_GetSpeed(1);
+		speed_left = Line_GetSpeed(LINE_MOTOR_LEFT);
 		if (Motor_CompareLastValue(0, speed_left))
 			motor_flag[0] = 1;
-		speed_right = Line_GetSpeed(2);
+		speed_right = Line_GetSpeed(LINE_MOTOR_RIGHT);
 		if (Motor_CompareLastValue(1, speed_right))
 			motor_flag[1] = 1;
 	}
 
-	// 云台控制（预留）
-	if (0)
+	// 云台控制，Gimbal
+	if (Gimbal_GetFlag())
 	{
 		speed_yaw = Gimbal_GetSpeed(GIMBAL_MOTOR_YAW);
-		if (Motor_CompareLastValue(2, speed_left))
+		if (Motor_CompareLastValue(2, speed_yaw))
 			motor_flag[2] = 1;
 		speed_pitch = Gimbal_GetSpeed(GIMBAL_MOTOR_PITCH);
-		if (Motor_CompareLastValue(3, speed_left))
+		if (Motor_CompareLastValue(3, speed_pitch))
 			motor_flag[3] = 1;
-		
+//		angle_yaw = Gimbal_GetSpeed(GIMBAL_MOTOR_YAW);
+//		if (Motor_CompareLastValue(2, angle_yaw))
+//			motor_flag[2] = 2;
+//		angle_pitch = Gimbal_GetSpeed(GIMBAL_MOTOR_PITCH);
+//		if (Motor_CompareLastValue(3, angle_pitch))
+//			motor_flag[3] = 2;
 	}
 
 	// 电机发送间隔控制
@@ -375,14 +484,20 @@ void Task_Motor(void)
 			// 发送对应电机指令
 			switch (idx)
 			{
-				case 0:  Motor_SetSpeed(&motor_left, speed_left);     break;
-				case 1:  Motor_SetSpeed(&motor_right, speed_right);   break;
-				case 2:  Motor_SetAbsAngle(&motor_yow, speed_yaw);    break;
-				case 3:  Motor_SetAbsAngle(&motor_pitch, speed_pitch);   break;
-//				case 0:  Motor_SetSpeed(&motor_left, 10);    break;
-//				case 1:  Motor_SetSpeed(&motor_right, 0);   break;
-//				case 2:  Motor_SetSpeed(&motor_yow, 0);    	break;
-//				case 3:  Motor_SetSpeed(&motor_pitch, 10);  break;
+				case 0:	Motor_SetSpeed(&motor_left, speed_left);     break;
+				case 1:	Motor_SetSpeed(&motor_right, speed_right);   break;
+				case 2:	if (motor_flag[2] == 1)
+							Motor_SetSpeed(&motor_yaw, speed_yaw);
+						else if (motor_flag[2] == 2)//相对位置
+							Motor_SetRelAngle(&motor_yaw, angle_yaw);    
+						else if (motor_flag[2] == 3)//绝对位置
+							Motor_SetAbsAngle(&motor_yaw, angle_yaw);break;    
+				case 3: if (motor_flag[3] == 1) 
+							Motor_SetSpeed(&motor_pitch, speed_pitch);
+						else if (motor_flag[3] == 2)//相对位置
+							Motor_SetRelAngle(&motor_pitch, angle_pitch);    
+						else if (motor_flag[3] == 3)//绝对位置
+							Motor_SetAbsAngle(&motor_pitch, angle_pitch);break;
 			}
 
 			motor_flag[idx] = 0;            // 清除标志
@@ -391,6 +506,22 @@ void Task_Motor(void)
 		}
 	}
 	motor_send_idx = 0;
+}
+
+void Task_Stop(void)
+{
+	if (stop_flag == 0)return;
+	stop_flag = 0;
+	
+	Motor_Stop(&motor_all);
+	while(1)
+	{
+		Buzzer_Enable();
+		system_delay_ms(100);
+		Buzzer_Disable();
+		system_delay_ms(100);
+	}
+	
 }
 
 /* ==================== Init ==================== */
@@ -402,14 +533,18 @@ void Task_Motor(void)
 
 void Task_Motor_Init(void)
 {
+	// 广播
+	Motor_Init(&motor_all, 0, 0);
 	// 初始化左电机
 	Motor_Init(&motor_left, 1, 0);
 	// 初始化右电机
 	Motor_Init(&motor_right, 2, 1);
 	// 初始化云台Yaw轴电机
-	Motor_Init(&motor_yow, 3, 0);
+	Motor_Init(&motor_yaw, 3, 0);
 	// 初始化云台Pitch轴电机
 	Motor_Init(&motor_pitch, 4, 0);
+	
+	Motor_SetAbsAngle(&motor_pitch, -0.2);
 	
 //	for (uint8_t i = 0; i < 4; i++)
 //	{
@@ -419,6 +554,6 @@ void Task_Motor_Init(void)
 
 void Task_Motor_Test(void)
 {
-	Motor_SetSpeed(&motor_left, 50);
+	Motor_SetSpeed(&motor_yaw, 10);
 	
 }

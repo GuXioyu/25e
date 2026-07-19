@@ -4,45 +4,6 @@ float intC;    //积分增量的比例系数
 float difout;  //微分项的输出值
 
 /**
-  * 函    数：PID参数和状态初始化
-  * 参    数：PID_t * 指定结构体的地址
-  * 参    数：kp ki kd PID三项参数
-  * 参    数：outmin outmax 输出限幅
-  * 参    数：error_intmin error_intmax 积分限幅
-  * 返回值：无
-  */
-void PID_Init(PID_t *p,
-			  float kp,
-			  float ki,
-			  float kd,
-			  float outmin,
-			  float outmax,
-			  float error_intmin,
-			  float error_intmax)
-{
-	if (p == 0)
-	{
-		return;
-	}
-
-	*p = (PID_t){0};
-
-	p->kp = kp;
-	p->ki = ki;
-	p->kd = kd;
-	p->outmin = outmin;
-	p->outmax = outmax;
-
-	p->intmode = PID_INTMODE_DATA_NORMAL | PID_INTMODE_LIMIT;
-	p->error_intmin = error_intmin;
-	p->error_intmax = error_intmax;
-	p->difmode = PID_DIFMODE_NORMAL;
-
-	intC = 0.0f;
-	difout = 0.0f;
-}
-
-/**
   * 函    数：PID计算及结构体变量值更新
   * 参    数：PID_t * 指定结构体的地址
   * 返 回 值：无

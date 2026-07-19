@@ -1211,6 +1211,16 @@
               <FilePath>..\code\Laser.h</FilePath>
             </File>
             <File>
+              <FileName>Cam.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\Cam.c</FilePath>
+            </File>
+            <File>
+              <FileName>Cam.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\code\Cam.h</FilePath>
+            </File>
+            <File>
               <FileName>新建文本文档.txt</FileName>
               <FileType>5</FileType>
               <FilePath>..\code\新建文本文档.txt</FilePath>

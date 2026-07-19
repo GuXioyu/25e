@@ -47,6 +47,13 @@ void Line(void);
 uint8_t Line_GetFlag(void);
 
 /**
+ * @brief 查询当前岔道类型是否与指定类型一致
+ * @param Type 待查询的岔道类型
+ * @return 1 表示当前类型匹配；0 表示当前类型不匹配
+ */
+uint8_t Line_GetForkType(LineForkType_t Type); //查询当前岔道类型是否匹配
+
+/**
  * @brief 获取指定电机的循迹目标速度。
  * @param motor LINE_MOTOR_LEFT 或 LINE_MOTOR_RIGHT。
  * @return 对应电机目标速度；参数无效时返回 0。
@@ -80,7 +87,7 @@ void Line_Timer(void);
 
 4左转完成：
 计算当前角度相对起始角度的差，并处理 -180°/+180° 回绕。
-只有角度差达到 <= -85° 才认为左转完成，清除岔道类型并置为 IDLE。
+启动后首次左直角岔道只有角度差达到 <= -LINE_START_FORK_FINISH_ANGLE_DEG（默认 -80°）才认为完成，后续左直角岔道使用 <= -65°；完成后清除岔道类型并置为 IDLE。
 
 5误识别岔道：
 未满足左直角条件时，直接回到 LINE_STATE_STRAIGHT，根据当前黑线平均位置继续普通循迹，不会停车。

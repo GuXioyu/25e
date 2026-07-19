@@ -9,7 +9,7 @@
 #define MOTOR_MAX_RPM 5000U
 
 /* 位置模式默认转速：调用绝对或相对角度接口时使用，单位 RPM */
-#define MOTOR_DEFAULT_POS_RPM 100U
+#define MOTOR_DEFAULT_POS_RPM 200U
 
 /* 每个脉冲对应的角度：1.8 度步距角 / 256 细分 = 0.00703125 度 */
 #define MOTOR_DEG_PER_PULSE   0.00703125f
@@ -18,7 +18,7 @@
 #define MOTOR_POS_DEG_PER_CNT  (360.0f / 65536.0f)
 
 /* 默认加速度：调用速度/位置命令时使用；0 表示不加减速，直接启动 */
-#define MOTOR_DEFAULT_ACC     200U
+#define MOTOR_DEFAULT_ACC     150
 
 /* 默认同步标志：0=立即执行命令，1=等待 Emm_V5_Synchronous_motion() 同步触发 */
 #define MOTOR_DEFAULT_SYNC    0U
@@ -109,6 +109,9 @@ void Motor_Disable(Motor_t *motor);
 // 立即停止电机
 void Motor_Stop(Motor_t *motor);
 
+// 将当前位置设为单圈回零零点并保存 
+void Motor_SetZero(Motor_t *motor);
+
 // 速度模式：speed_rpm 带正负，正数=CW，负数=CCW
 void Motor_SetSpeed(Motor_t *motor, int16_t speed_rpm);
 
@@ -121,8 +124,8 @@ void Motor_SetRelAngle(Motor_t *motor, float angle_deg);
 // 串口逐字节解析电机回包
 void Motor_ProcessByte(uint8_t uartIndex, uint8_t byte);
 
-// 比较指定通道最近两次输入值：本次值与上一次相同返回 1，不同返回 0
-// 参数 channel 范围为 0..(MOTOR_COMPARE_CHANNELS-1)
+// 比较指定通道本次输入值与历史值：不同返回 1，相同返回 0，比较后保存本次值
+// 参数 channel 范围为 0..(MOTOR_COMPARE_CHANNELS-1)，首次调用按历史值 0 比较
 uint8_t Motor_CompareLastValue(uint8_t channel, int32_t value);
 
 #endif /* __MOTOR_H */
