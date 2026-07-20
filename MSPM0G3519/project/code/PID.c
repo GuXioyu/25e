@@ -9,6 +9,7 @@ void PID_Update(PID_t *p) //更新一次 PID 控制器输出
 {
 	float ProportionalOut = 0.0f; //保存本次比例项输出
 	float IntegralOut = 0.0f; //保存本次积分项输出
+	float FeedforwardOut = 0.0f; //保存本次前馈项输出
 
 	/* 更新本次控制所需的误差历史 */
 	p->error_past = p->error_current; //保存上次误差
@@ -18,6 +19,12 @@ void PID_Update(PID_t *p) //更新一次 PID 控制器输出
 	if (p->mode_p == PID_PMODE_ENABLE)
 	{
 		ProportionalOut = p->kp * p->error_current; //生成比例项输出
+	}
+
+	/* 按前馈模式计算前馈项 */
+	if (p->mode_f == PID_FMODE_ENABLE)
+	{
+		FeedforwardOut = p->kf * (p->error_current - p->error_past); //按误差变化生成前馈项输出
 	}
 
 	/* 按积分模式累积误差并始终执行积分限幅 */
@@ -83,7 +90,7 @@ void PID_Update(PID_t *p) //更新一次 PID 控制器输出
 	p->actual_past = p->actual_current; //保存当前测量值供下一次微分使用
 
 	/* 合成输出并保留原有执行器处理能力 */
-	p->out = ProportionalOut + IntegralOut + p->dif_out; //合成三项控制输出
+	p->out = ProportionalOut + IntegralOut + p->dif_out + FeedforwardOut; //合成四项控制输出
 	if (p->out > 0.0f)
 	{
 		p->out += p->out_offset; //为正向非零输出补偿偏置

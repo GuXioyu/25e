@@ -20,16 +20,17 @@
 
 ## 执行步骤
 
-1. 为 PID 结构体和头文件增加前馈模式与前馈系数。
-2. 在 PID 更新函数中按 `mode_f` 计算前馈输出并参与最终合成。
-3. 使用临时测试验证前馈启用、禁用和 P/I/D/F 合成输出。
+1. 已为 PID 结构体和头文件增加前馈模式与前馈系数。
+2. 已在 PID 更新函数中按 `mode_f` 计算前馈输出并参与最终合成。
+3. 已使用临时测试验证前馈启用、禁用和 P/F 合成输出。
 
 ## 验证方法
 
-- 验证 `mode_f = 0` 时前馈项不参与输出。
-- 验证 `mode_f = 1`、`kf = 2.0f`、本次误差为 `3.0f`、上次误差为 `1.0f` 时前馈输出为 `4.0f`。
-- 验证前馈项仍受现有输出偏置、限幅和死区处理。
-- 使用工程可用的构建方式编译；无法运行 MDK 构建时记录原因和人工验证方法。
+- 已运行 `gcc -std=c11 -Wall -Wextra -Werror -I ..\code C:\Users\Chen\AppData\Local\Temp\pid_feedforward_test.c ..\code\PID.c -lm`，编译并运行通过且无警告。
+- 已验证 `mode_f = 1`、`kf = 2.0f`、本次误差为 `3.0f`、上次误差为 `1.0f` 时前馈输出为 `4.0f`。
+- 已验证 `mode_f = 0` 时输出为 `0.0f`，以及比例项为 `3.0f`、前馈项为 `4.0f` 时合成输出为 `7.0f`。
+- 已运行 `gcc -std=c11 -Wall -Wextra -Werror -I ..\code -fsyntax-only ..\code\PID.c`，语法检查通过且无警告。
+- 未运行 MDK 工程级构建：环境变量中没有 `UV4.exe` 或 ARM 编译器。人工验证可在 `mdk/SeekFree_MSPM0G3519_Device_Library.uvprojx` 中设置 `mode_f`、`kf` 后单步检查前馈输出和总输出。
 
 ## 已确认决定
 

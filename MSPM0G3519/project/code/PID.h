@@ -17,6 +17,9 @@
 #define PID_DMODE_FRONT            (2U) /* 微分先行 */
 #define PID_DMODE_IMPERFECT        (3U) /* 不完全微分 */
 
+#define PID_FMODE_DISABLE          (0U) /* 禁用前馈项 */
+#define PID_FMODE_ENABLE           (1U) /* 启用前馈项 */
+
 typedef struct
 {
 	float kp; //比例系数
@@ -36,6 +39,8 @@ typedef struct
 	uint8_t mode_p; //比例项模式
 	uint8_t mode_i; //积分项模式
 	uint8_t mode_d; //微分项模式
+	uint8_t mode_f; //前馈项模式
+	float kf; //前馈系数
 	float intk_nonline; //非线性积分系数
 	float int_sep_threshold; //积分分离阈值
 	float error_intmax; //积分上限
