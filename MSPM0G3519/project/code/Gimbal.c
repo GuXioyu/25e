@@ -9,6 +9,7 @@
 #include "My_Uart.h"
 #include "PID.h"
 #include "Cam.h"
+#include "HWT101.h"
 #include "Line.h"
 
 /* 云台数据处理周期，单位为毫秒 */
@@ -47,25 +48,24 @@ uint16_t gimbal_laser_y;
 
 
 /* X 轴图像坐标闭环 PID 状态 */
-PID_t gimbal_aim1_x_PID = 
+PID_t gimbal_aim2_x_straight_PID = 
 {
 	.kp = 0.1,
 	.ki = 0.001,
 	.kd = 0.1,
 	
-	.target = ImgWidth/2.0,
-	
 	.intmode = PID_INTMODE_DATA_NORMAL | PID_INTMODE_LIMIT,
 	.error_intmax = 100,
 	.error_intmin = 100,
 	
-	.difmode = PID_DIFMODE_NORMAL,
+	.difmode = PID_DIFMODE_FRONT,//动态目标，微分先行
 	
 	.outmax = 10,
 	.outmin = 10,
 	
 	 
 };  
+PID_t gimbal_aim2_x_fork_PID;
 PID_t gimbal_aim1_y_PID;
 
 float aim_x_kp, aim_x_ki, aim_x_kd;
@@ -201,14 +201,22 @@ uint8_t Gimbal_Aim1(uint8_t mode)// 定->定
 				gimbal_aim_state = 20;
 			else if (mode == 2)
 				gimbal_aim_state = 10;
+			else if (mode == 3)
+				gimbal_aim_state = 11;
 			break;
-        case 10:// 转一圈
+        case 10:// 左转一圈
             gimbal_speed_yaw = 20.0f;
             gimbal_speed_pitch = 0.0f;
             gimbal_flag = 1U;
-            gimbal_aim_state = 11;
+            gimbal_aim_state = 19;
             break;
-        case 11: //寻找靶子
+		case 11:// 右转一圈
+            gimbal_speed_yaw = -20.0f;
+            gimbal_speed_pitch = 0.0f;
+            gimbal_flag = 1U;
+            gimbal_aim_state = 19;
+            break;
+        case 19: //寻找靶子
 			if (Cam_GetFlag() == 1)
 				gimbal_aim_find_count++;
 			else 
@@ -316,21 +324,32 @@ uint8_t Gimbal_Aim1(uint8_t mode)// 定->定
 void Gimbal_Aim2(void)// 动->定
 {
 	static uint8_t gimbal_line_state; 			//状态机
+	static float gimbal_gyroz;
 	
 	if (gimbal_aim2_timer_flag == 0)return;		//定时
     gimbal_aim2_timer_flag = 0;
+	if (gimbal_new_flag == 0)return 0;			//new
+	gimbal_new_flag = 0;
 	
 	gimbal_line_state = Line_GetForkType(LINE_FORK_TYPE_LEFT_RIGHT_ANGLE);
 	
 	switch (gimbal_line_state)
 	{
 		case (0)://直线
-		
+			gimbal_aim2_x_straight_PID.target = (float)gimbal_target_x;
+			gimbal_aim2_x_straight_PID.actual_current = (float)gimbal_laser_x;
+			PID_Update(&gimbal_aim2_x_straight_PID);
+			gimbal_speed_yaw = gimbal_aim2_x_straight_PID.out;
+
 		
 			break;
 		case (1)://转弯
-		
-		
+			gimbal_gyroz = HWT101_GetGyroZ();
+			gimbal_aim2_x_fork_PID.target = (float)gimbal_target_x;
+			gimbal_aim2_x_fork_PID.actual_current = (float)gimbal_laser_x;
+			PID_Update(&gimbal_aim2_x_fork_PID);
+			gimbal_speed_yaw = - gimbal_gyroz / 6 + gimbal_aim2_x_fork_PID.out;
+
 			break;
 	}
 }
@@ -340,6 +359,8 @@ void Gimbal_Aim3(void)// 动->动
 	
 	if (gimbal_aim3_timer_flag == 0)return;		//定时
     gimbal_aim3_timer_flag = 0;
+	if (gimbal_new_flag == 0)return 0;				//new
+	gimbal_new_flag = 0;
 	
 	gimbal_line_state = Line_GetForkType(LINE_FORK_TYPE_LEFT_RIGHT_ANGLE);
 	

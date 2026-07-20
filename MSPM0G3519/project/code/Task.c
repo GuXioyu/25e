@@ -241,10 +241,20 @@ void Task_Screen_Rx(void)
 		}
 		else if (name != NULL && strcmp(name, "auto") == 0)
 		{
-			mode2 = 2;
-			mode2_gimbal_flag = 1;
-			para_flag = 1;
-			//while(1)Serial_Printf(&huart5, "111");
+			char *condition = strtok(NULL, ", ");
+			if (condition != NULL && strcmp(condition, "left") == 0)
+			{
+				mode2 = 2;
+				mode2_gimbal_flag = 1;
+				para_flag = 1;
+			}
+			else if (condition != NULL && strcmp(condition, "right") == 0)
+			{
+				mode2 = 3;
+				mode2_gimbal_flag = 1;
+				para_flag = 1;
+			}
+			
 		}	
 	}
 	else if (Tag != NULL && strcmp(Tag, "mode3") == 0)
