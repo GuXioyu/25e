@@ -264,18 +264,21 @@ void Task_Screen_Rx(void)
 		{
 			mode3 = 1;
 			mode3_N = 1;
+			mode3_gimbal_flag = 1;
 			para_flag = 1;
 		}
 		else if (name != NULL && strcmp(name, "B2") == 0)
 		{
 			mode3 = 2;
 			mode3_N = 2;
+			mode3_gimbal_flag = 1;
 			para_flag = 1;
 		}
 		else if (name != NULL && strcmp(name, "B3") == 0)
 		{
 			mode3 = 3;
 			mode3_N = 1;
+			mode3_gimbal_flag = 1;
 			para_flag = 1;
 		}
 	}	
@@ -390,7 +393,7 @@ void Task_Line(void)
 			if (mode1_line_flag == 0)return;	//开始控制
 			Line();						//更新速度，给Task_Motor
 			if (abs(laps) >= mode1_N && 
-				angle >= -10 && angle <= 10 &&
+				angle >= -25 && angle <= 25 &&
 				gray_digital[0] == 1 && gray_digital[1] == 1 && gray_digital[3] == 1)
 			{
 				mode = 0;
@@ -425,6 +428,7 @@ void Task_Line(void)
 void Task_Gimbal(void)
 {
 	static uint8_t mode2_state;
+	static uint8_t mode3_state;
 	switch (mode)
 	{
 		case 2://mode2瞄准
@@ -438,19 +442,40 @@ void Task_Gimbal(void)
 					break;
 				case (1):// 发射激光
 					Laser_Enable();
-					mode2_state = 3;
+					mode2_state = 2;
 					break;
-				case (3)://当mode=0时，关闭激光
+				case (2)://当mode=0时，关闭激光
 					break;
 			}	
 			break;
 		case 3://mode3瞄准
 			if (mode3_gimbal_flag == 0)return;
+			Serial_Printf(&huart5, "%d\n", mode3_state);
 			switch (mode3)
 			{
 				case (1):// 动->定瞄准
-					
-				
+					switch (mode3_state)
+					{
+						case (0)://瞄准
+							if (Gimbal_Aim1(1) == 1)
+								mode3_state = 1;
+							break;
+						case (1)://发射激光
+							Laser_Enable();
+							mode3_state = 2;
+							break;
+						case (2)://循迹
+							//开始循迹mode3_line_flag = 1;
+							mode3_state = 3;
+							break;
+						case (3)://打靶
+							Gimbal_Aim2();
+							//小车到终点if ()
+							//	mode3_state = 4
+							break;
+						case (4)://等待退出，关闭激光
+							break;
+					}
 					break;
 				case (2):// 动->动瞄准
 					break;
@@ -488,10 +513,8 @@ void Task_Motor(void)
 	{
 		case (1):
 			speed_yaw = Gimbal_GetSpeed(GIMBAL_SPEED_YAW);
-			if (Motor_CompareLastValue(2, speed_yaw))
 				motor_flag[2] = 1;
 			speed_pitch = Gimbal_GetSpeed(GIMBAL_SPEED_PITCH);
-			if (Motor_CompareLastValue(3, speed_pitch))
 				motor_flag[3] = 1;
 			break;
 		case (2):

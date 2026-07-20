@@ -56,10 +56,10 @@ void Cam_ReadXY(void)    //读取图像坐标并更新全局坐标
             cam_prelaser_y = IntValue6;            		
 			
 			cam_flag = 1;								//置新数据标志位
+			
+			//Serial_Printf(&huart5, "%d\n",cam_flag);
         }
     }
-//		Serial_Printf(&huart5, "tx=%d, ty=%d, lx=%d, ly=%d, plx=%d, ply=%d\n",
-//		cam_target_x, cam_target_y, cam_laser_x, cam_laser_y, cam_prelaser_x, cam_prelaser_y);
 }
 	
 /**

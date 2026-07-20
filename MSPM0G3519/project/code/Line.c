@@ -8,10 +8,10 @@
 #define LINE_SPEED_MAX       (150) /* 直线循迹输出的最大速度，限制电机目标速度上限。 */
 #define LINE_SPEED_BASE      (80) /* 黑线居中时使用的基础巡线速度。 */
 #define LINE_SPEED_REDUCTION (24)  /* 偏离中心时基础速度的最大降低量。 */
-#define LINE_SPEED_DIFFERENCE (12) /* 偏离中心时单侧轮速相对基础速度的最大补偿量。 */
-#define LINE_START_FORK_FINISH_ANGLE_DEG (65.0f) /* 启动后首个左直角岔道完成判定角度阈值，单位为度。 */
-#define LINE_FORK_FINISH_ANGLE_DEG       (65.0f) /* 后续左直角岔道完成判定角度阈值，单位为度。 */
-#define LINE_FORK_LEFT_SPEED_LEFT  (25)    /* 左直角岔道时左轮目标速度，可根据实车调节。 */
+#define LINE_SPEED_DIFFERENCE (15) /* 偏离中心时单侧轮速相对基础速度的最大补偿量。 */
+#define LINE_START_FORK_FINISH_ANGLE_DEG (70.0f) /* 启动后首个左直角岔道完成判定角度阈值，单位为度。 */
+#define LINE_FORK_FINISH_ANGLE_DEG       (70.0f) /* 后续左直角岔道完成判定角度阈值，单位为度。 */
+#define LINE_FORK_LEFT_SPEED_LEFT  (30)    /* 左直角岔道时左轮目标速度，可根据实车调节。 */
 #define LINE_FORK_LEFT_SPEED_RIGHT (80)    /* 左直角岔道时右轮目标速度，可根据实车调节。 */
 #define LINE_LOST_CONFIRM_TIME_MS  (100U)  /* 连续未检测到黑线的丢线确认时间，单位为毫秒。 */
 #define LINE_LOST_CONFIRM_COUNT    (LINE_LOST_CONFIRM_TIME_MS / LINE_SAMPLE_PERIOD_MS) /* 丢线确认所需的连续采样次数。 */
