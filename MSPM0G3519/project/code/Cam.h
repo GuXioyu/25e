@@ -10,9 +10,11 @@
 #include "My_Uart.h"
 
 #define CAM_TARGERT		1		//目标坐标类型
-#define CAM_LASER		2		//激光坐标预留类型
+#define CAM_LASER		2		//激光坐标类型
+#define CAM_PRELASER	3		//激光坐标类型
+
 #define CAM_X			1		//目标坐标类型
-#define CAM_Y			2		//激光坐标预留类型
+#define CAM_Y			2		//激光坐标类型
 
 void Cam_ReadXY(void);    //读取图像坐标并更新全局坐标
 uint8_t Cam_GetFlag(void);    //读取并清除一次新坐标标志

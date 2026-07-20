@@ -36,15 +36,9 @@ int main (void)
 	HWT101_SetYawZero(&huart6);
 	
 //	Task_Motor_Test();
+//	Laser_Enable();
 //	while(1);
-//	while(1)
-//	{
-//		Laser_Enable();
-//		system_delay_ms(100);
-//		Laser_Disable();
-//		system_delay_ms(100);
-//		
-//	}
+
     while(true)
     {
 		

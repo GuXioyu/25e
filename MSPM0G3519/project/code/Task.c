@@ -1,5 +1,7 @@
 #include "Task.h"
 
+//while(1)Serial_Printf(&huart5, "333");
+
 extern uint16_t tick_ms;
 extern uint8_t mode;
 
@@ -35,6 +37,10 @@ uint16_t laser_x,laser_y;
 int8_t laps;		//	已转圈数
 
 float angle;		// hwt101
+
+
+
+uint8_t line_gimbal_flag;
 
 /* ==================== Timer ==================== */
 /**
@@ -115,10 +121,12 @@ void Task_BLE_Tx(void)
 	BLE_Tx_timer_flag = 0;
 
 //	// 发送姿态角数据
-	Serial_Printf(&huart5, "t=%d, m=%d, m2=%d, m3=%d\n",
-							tick_ms, mode, mode2, mode3);
-	Serial_Printf(&huart5, "ay=%f, ap=%f\n",
-							angle_yaw, angle_pitch);
+	Serial_Printf(&huart5, "t=%d, m=%d, m2=%d, m3=%d, gf=%d\n",
+							tick_ms, mode, mode2, mode3, line_gimbal_flag);
+	Serial_Printf(&huart5, "tx=%d, ty=%d, lx=%d, ly=%d\n",
+							target_x, target_y, laser_x, laser_y);   
+//	Serial_Printf(&huart5, "tx=%d, t=%d, lx=%d, ly=%d\n",
+//							, mode, mode2, mode3);
 //	Serial_Printf(&huart5, "%d, %d, %d, %d, %d, %d, %d, %d, %d\n",
 //							tick_ms, gray_analog[0], gray_analog[1], gray_analog[2], gray_analog[3],
 //							gray_analog[4], gray_analog[5], gray_analog[6], gray_analog[7]);
@@ -165,6 +173,10 @@ void Task_Screen_Tx(void)
 								gray_digital[4], gray_digital[5], gray_digital[6], gray_digital[7]);
 		Serial_Printf(&huart7, "t1.txt=\"Angle:%.1f\"\xff\xff\xff", angle);
 		Serial_Printf(&huart7, "t2.txt=\"Laps:%d\"\xff\xff\xff", laps);
+		Serial_Printf(&huart7, "t3.txt=\"Tx:%d\"\xff\xff\xff", target_x);
+		Serial_Printf(&huart7, "t4.txt=\"Ty:%d\"\xff\xff\xff", target_y);
+		Serial_Printf(&huart7, "t5.txt=\"Lx:%d\"\xff\xff\xff", laser_x);
+		Serial_Printf(&huart7, "t6.txt=\"Ty:%d\"\xff\xff\xff", laser_y);
 	}
 }
 
@@ -210,7 +222,7 @@ void Task_Screen_Rx(void)
 			char *Value1 = strtok(NULL, ", ");
 			if (Value1 != NULL)
 			{
-				int IntValue1 = atof(Value1);
+				int IntValue1 = atoi(Value1);
 				mode1_N = IntValue1;	
 				mode1_line_flag = 1;
 				para_flag = 1;
@@ -224,6 +236,7 @@ void Task_Screen_Rx(void)
 		if (name != NULL && strcmp(name, "lock") == 0)
 		{
 			mode2 = 1;
+			mode2_gimbal_flag = 1;
 			para_flag = 1;
 		}
 		else if (name != NULL && strcmp(name, "auto") == 0)
@@ -309,7 +322,7 @@ void Task_Screen_Rx(void)
 		mode3 = 0;
 		mode3_line_flag = 0;
 		HWT101_ClearLapCount();
-		//Laser_Disable();
+		Laser_Disable();
 	}
 }	
 
@@ -339,8 +352,17 @@ void Task_Read_Sensor(void)
 	Cam_ReadXY();
 	target_x = Cam_GetXY(CAM_X, CAM_TARGERT);
 	target_y = Cam_GetXY(CAM_Y, CAM_TARGERT);
-	laser_x = Cam_GetXY(CAM_X, CAM_LASER);
-	laser_y = Cam_GetXY(CAM_Y, CAM_LASER);
+	if (mode == 2)
+	{
+		laser_x = Cam_GetXY(CAM_X, CAM_PRELASER);
+		laser_y = Cam_GetXY(CAM_Y, CAM_PRELASER);
+	}
+	else if (mode ==3)
+	{
+		laser_x = Cam_GetXY(CAM_X, CAM_LASER);
+		laser_y = Cam_GetXY(CAM_Y, CAM_LASER);
+	}
+	Gimbal_GetImage(target_x, target_y, laser_x, laser_y);
 	
 }
 
@@ -401,31 +423,33 @@ void Task_Gimbal(void)
 			switch (mode2_state)
 			{
 				case (0):// 定->定瞄准
-					//while(1)Serial_Printf(&huart5, "333");
 					if (Gimbal_Aim1(mode2) == 1)
 						mode2_state = 1;
 					break;
 				case (1):// 发射激光
-					//while(1)Serial_Printf(&huart5, "444");
 					Laser_Enable();
-					mode2_state = 2;
+					mode2_state = 3;
 					break;
-				case (2):// 等待关闭
-					if (mode != 2)
-					{
-						Laser_Disable();
-						mode2_state = 0;
-					}
+				case (3)://当mode=0时，关闭激光
 					break;
 			}	
-			
 			break;
-		
 		case 3://mode3瞄准
 			if (mode3_gimbal_flag == 0)return;
+			switch (mode3)
+			{
+				case (1):// 动->定瞄准
+					
+				
+					break;
+				case (2):// 动->动瞄准
+					break;
+			}
+			break;
+		default:
+			mode2_state = 0;
 			break;
 	}
-	
 }
 /**
  * @brief  电机运动执行任务，轮询发送电机控制指令
@@ -449,20 +473,24 @@ void Task_Motor(void)
 	}
 
 	// 云台控制，Gimbal
-	if (Gimbal_GetFlag())
+	line_gimbal_flag = Gimbal_GetFlag();
+	switch (line_gimbal_flag)
 	{
-		speed_yaw = Gimbal_GetSpeed(GIMBAL_MOTOR_YAW);
-		if (Motor_CompareLastValue(2, speed_yaw))
-			motor_flag[2] = 1;
-		speed_pitch = Gimbal_GetSpeed(GIMBAL_MOTOR_PITCH);
-		if (Motor_CompareLastValue(3, speed_pitch))
-			motor_flag[3] = 1;
-//		angle_yaw = Gimbal_GetSpeed(GIMBAL_MOTOR_YAW);
-//		if (Motor_CompareLastValue(2, angle_yaw))
-//			motor_flag[2] = 2;
-//		angle_pitch = Gimbal_GetSpeed(GIMBAL_MOTOR_PITCH);
-//		if (Motor_CompareLastValue(3, angle_pitch))
-//			motor_flag[3] = 2;
+		case (1):
+			speed_yaw = Gimbal_GetSpeed(GIMBAL_SPEED_YAW);
+			if (Motor_CompareLastValue(2, speed_yaw))
+				motor_flag[2] = 1;
+			speed_pitch = Gimbal_GetSpeed(GIMBAL_SPEED_PITCH);
+			if (Motor_CompareLastValue(3, speed_pitch))
+				motor_flag[3] = 1;
+			break;
+		case (2):
+			angle_yaw = Gimbal_GetSpeed(GIMBAL_ANGLE_YAW);
+			if (angle_yaw != 0)
+				motor_flag[2] = 2;
+			angle_pitch = Gimbal_GetSpeed(GIMBAL_ANGLE_PITCH);
+			if (angle_pitch != 0)
+				motor_flag[3] = 2;
 	}
 
 	// 电机发送间隔控制
@@ -486,7 +514,7 @@ void Task_Motor(void)
 			{
 				case 0:	Motor_SetSpeed(&motor_left, speed_left);     break;
 				case 1:	Motor_SetSpeed(&motor_right, speed_right);   break;
-				case 2:	if (motor_flag[2] == 1)
+				case 2: if (motor_flag[2] == 1)
 							Motor_SetSpeed(&motor_yaw, speed_yaw);
 						else if (motor_flag[2] == 2)//相对位置
 							Motor_SetRelAngle(&motor_yaw, angle_yaw);    
@@ -536,13 +564,13 @@ void Task_Motor_Init(void)
 	// 广播
 	Motor_Init(&motor_all, 0, 0);
 	// 初始化左电机
-	Motor_Init(&motor_left, 1, 0);
+	Motor_Init(&motor_left, 1, 0);		//前+
 	// 初始化右电机
-	Motor_Init(&motor_right, 2, 1);
+	Motor_Init(&motor_right, 2, 1);		//前+
 	// 初始化云台Yaw轴电机
-	Motor_Init(&motor_yaw, 3, 0);
+	Motor_Init(&motor_yaw, 3, 1);		//右+
 	// 初始化云台Pitch轴电机
-	Motor_Init(&motor_pitch, 4, 0);
+	Motor_Init(&motor_pitch, 4, 0);		//下+
 	
 	Motor_SetAbsAngle(&motor_pitch, -0.2);
 	
@@ -554,6 +582,6 @@ void Task_Motor_Init(void)
 
 void Task_Motor_Test(void)
 {
-	Motor_SetSpeed(&motor_yaw, 10);
+	Motor_SetSpeed(&motor_yaw, 1);
 	
 }

@@ -4,14 +4,12 @@
  */
 
 #include "Gimbal.h"
-
+#include "zf_common_headfile.h"
 #include <stdint.h>
-
 #include "My_Uart.h"
 #include "PID.h"
-#include "zf_common_headfile.h"
 #include "Cam.h"
-#include "laser.h"
+#include "Line.h"
 
 /* 云台数据处理周期，单位为毫秒 */
 #define GIMBAL_TIMER (10U)
@@ -19,11 +17,6 @@
 /* 图像参数 */
 #define ImgWidth      640U                /* 视觉图像宽度，单位：像素 */
 #define ImgHeight     360U                /* 视觉图像高度，单位：像素 */
-
-/* PID 参数 */
-#define XKp           0.02f               /* X 轴 PID 比例系数 */
-#define XKi           0.0f                /* X 轴 PID 积分系数 */
-#define XKd           0.0f                /* X 轴 PID 微分系数 */
 
 /* 控制参数 */
 #define YDegPerPx     0.02f               /* Y 轴像素误差到角度增量的比例，单位：度/像素 */
@@ -38,10 +31,13 @@ uint8_t gimbal_aim3_timer_flag;
 
 /* 云台模块已完成一次数据处理的通知标志 */
 uint8_t gimbal_flag;
+uint8_t gimbal_new_flag;
 
 /* 当前计算出的云台两轴目标速度 */
-float gimbal_speed_yaw;
-float gimbal_speed_pitch;
+int16 gimbal_speed_yaw;
+int16 gimbal_speed_pitch;
+float gimbal_angle_yaw;
+float gimbal_angle_pitch;
 
 /* 当前帧的图像坐标 */
 uint16_t gimbal_target_x;
@@ -81,16 +77,17 @@ PID_t g_x_pid;
  * @brief  
  * @note   
  */
-uint8_t Gimbal_GetImage(void)
+void Gimbal_GetImage(uint16_t target_x, uint16_t target_y, uint16_t laser_x, uint16_t laser_y)
 {
-	if (Cam_GetFlag() == 0)return 0;
+	if (Cam_GetFlag() == 0)return;
 	else 
 	{
-		gimbal_target_x = Cam_GetXY(CAM_X, CAM_TARGERT);
-		gimbal_target_y = Cam_GetXY(CAM_Y, CAM_TARGERT);
-		gimbal_laser_x = Cam_GetXY(CAM_X, CAM_LASER);
-		gimbal_laser_y = Cam_GetXY(CAM_Y, CAM_LASER);
-		return 1;
+		gimbal_target_x = target_x;
+		gimbal_target_y = target_y;
+		
+		gimbal_laser_x = laser_x;
+		gimbal_laser_y = laser_y;
+		gimbal_new_flag = 1;
 	}
 }
 
@@ -186,86 +183,177 @@ uint8_t Gimbal_Aim1(uint8_t mode)// 定->定
 {
 	static uint8_t gimbal_aim_state = 0U; 			//状态机
 	static uint8_t gimbal_aim_find_count = 0U;		//发现目标计数器
-	static uint8_t gimbal_aim_error_count = 0U;		//允许误差计数器
+	static uint8_t gimbal_aim_error_count1 = 0U;	//允许误差计数器
+	static uint8_t gimbal_aim_error_count2 = 0U;	//允许误差计数器
+	static uint8_t gimbal_aim_x_OK = 0U;			//瞄准成功
+	static uint8_t gimbal_aim_y_OK = 0U;			//瞄准成功
 	
 	if (gimbal_aim1_timer_flag == 0)return 0;		//定时
     gimbal_aim1_timer_flag = 0;
-
+	if (gimbal_new_flag == 0)return 0;				//new
+	gimbal_new_flag = 0;
+	
+//	while(1)Serial_Printf(&huart5, "111");
     switch (gimbal_aim_state)
     {
-		 case 0U:// 转一圈
+		case 0U:// 转一圈
 			if (mode == 1)
-				gimbal_aim_state = 100;
+				gimbal_aim_state = 20;
 			else if (mode == 2)
-				gimbal_aim_state = 1;
-        case 100U:// 转一圈
+				gimbal_aim_state = 10;
+			break;
+        case 10:// 转一圈
             gimbal_speed_yaw = 20.0f;
             gimbal_speed_pitch = 0.0f;
             gimbal_flag = 1U;
-            gimbal_aim_state = 1U;
+            gimbal_aim_state = 11;
             break;
-        case 1U: //寻找靶子
-			if (Gimbal_GetImage() == 1)
+        case 11: //寻找靶子
+			if (Cam_GetFlag() == 1)
 				gimbal_aim_find_count++;
 			else 
 				gimbal_aim_find_count = 0;
 			if (gimbal_aim_find_count >= 5) //连续有5帧数据，则发现目标
 			{
 				gimbal_aim_find_count = 0;
-				gimbal_aim_state = 2;
+				gimbal_aim_state = 20;
 			}
 			break;
-		case 2: //瞄准
-			gimbal_aim1_x_PID.actual_current = gimbal_laser_x;
-			PID_Update(&gimbal_aim1_x_PID);
-			gimbal_speed_yaw = gimbal_aim1_x_PID.out;
-			gimbal_flag = 1;
-			//瞄准成功判定
-			if (gimbal_aim1_x_PID.error_current <= 5)//允许的误差
-				gimbal_aim_error_count++;
-			else 
-				gimbal_aim_error_count = 0;
-			if (gimbal_aim_error_count >= 5)
+		case 20: //瞄准
+			//X轴
+			if (abs(gimbal_target_x - gimbal_laser_x) > 50)
 			{
-				gimbal_aim_error_count = 0;
-				gimbal_aim_state = 3;
+				if (gimbal_target_x > gimbal_laser_x)
+					gimbal_angle_yaw = 1;
+				else if (gimbal_target_x < gimbal_laser_x)
+					gimbal_angle_yaw = -1;
 			}
+			else if (abs(gimbal_target_x - gimbal_laser_x) > 5)
+			{
+				if (gimbal_target_x > gimbal_laser_x)
+					gimbal_angle_yaw = 0.1;
+				else if (gimbal_target_x < gimbal_laser_x)
+					gimbal_angle_yaw = -0.1;
+			}
+			else if (abs(gimbal_target_x - gimbal_laser_x) > 0)
+			{
+				if (gimbal_target_x > gimbal_laser_x)
+					gimbal_angle_yaw = 0.01;
+				else if (gimbal_target_x < gimbal_laser_x)
+					gimbal_angle_yaw = -0.01;
+			}
+			else if (abs(gimbal_target_x - gimbal_laser_x) == 0)
+			{
+				gimbal_angle_yaw = 0;
+			}
+			//Y轴
+			if (abs(gimbal_target_y - gimbal_laser_y) > 50)
+			{
+				if (gimbal_target_y > gimbal_laser_y)
+					gimbal_angle_pitch = 1;
+				else if (gimbal_target_y < gimbal_laser_y)
+					gimbal_angle_pitch = -1;
+			}
+			else if (abs(gimbal_target_y - gimbal_laser_y) > 5)
+			{
+				if (gimbal_target_y > gimbal_laser_y)
+					gimbal_angle_pitch = 0.1;
+				else if (gimbal_target_y < gimbal_laser_y)
+					gimbal_angle_pitch = -0.1;
+			}
+			else if (abs(gimbal_target_y - gimbal_laser_y) > 0)
+			{
+				if (gimbal_target_y > gimbal_laser_y)
+					gimbal_angle_pitch = 0.01;
+				else if (gimbal_target_y < gimbal_laser_y)
+					gimbal_angle_pitch = -0.01;
+			}
+			else if (abs(gimbal_target_y - gimbal_laser_y) == 0)
+			{
+				gimbal_angle_pitch = 0;
+			}
+			//瞄准成功判定
+			if (abs(gimbal_target_x - gimbal_laser_x) <= 2)//允许的误差
+				gimbal_aim_error_count1++;
+			else 
+				gimbal_aim_error_count1 = 0;
+			if (gimbal_aim_error_count1 >= 5)
+			{
+				gimbal_aim_error_count1 = 0;
+				gimbal_aim_x_OK = 1;
+			}
+			if (abs(gimbal_target_y - gimbal_laser_y) <= 2)//允许的误差
+				gimbal_aim_error_count2++;
+			else 
+				gimbal_aim_error_count2 = 0;
+			if (gimbal_aim_error_count2 >= 5)
+			{
+				gimbal_aim_error_count2 = 0;
+				gimbal_aim_y_OK = 1;
+			}
+			
+			if (gimbal_aim_x_OK == 1)gimbal_angle_yaw = 0;
+			if (gimbal_aim_y_OK == 1)gimbal_angle_pitch = 0;
+			if (gimbal_aim_x_OK == 1 && gimbal_aim_y_OK == 1)
+			{
+				gimbal_aim_state = 21;
+			}
+			gimbal_flag = 2;
 			break;
-		case 3://fire
+		case 21://fire
+			gimbal_aim_x_OK = 0;
+			gimbal_aim_y_OK = 0;
 			gimbal_aim_state = 0;
 			return 1;
     }
 	return 0;
 }
+
+//			gimbal_target_x
+//			gimbal_target_y
+//			gimbal_laser_x
+//			gimbal_laser_y
 void Gimbal_Aim2(void)// 动->定
 {
+	static uint8_t gimbal_line_state; 			//状态机
+	
 	if (gimbal_aim2_timer_flag == 0)return;		//定时
     gimbal_aim2_timer_flag = 0;
 	
-	if(0)//直线
-	{
-		
-	}
+	gimbal_line_state = Line_GetForkType(LINE_FORK_TYPE_LEFT_RIGHT_ANGLE);
 	
-	else if (0)//转弯
+	switch (gimbal_line_state)
 	{
+		case (0)://直线
 		
+		
+			break;
+		case (1)://转弯
+		
+		
+			break;
 	}
 }
 void Gimbal_Aim3(void)// 动->动
 {
-	if (gimbal_aim2_timer_flag == 0)return;		//定时
-    gimbal_aim2_timer_flag = 0;
+	static uint8_t gimbal_line_state; 			//状态机
 	
-	if(0)//直线
-	{
-		
-	}
-	else if (0)//转弯 
-	{
-		
-	}
+	if (gimbal_aim3_timer_flag == 0)return;		//定时
+    gimbal_aim3_timer_flag = 0;
 	
+	gimbal_line_state = Line_GetForkType(LINE_FORK_TYPE_LEFT_RIGHT_ANGLE);
+	
+	switch (gimbal_line_state)
+	{
+		case (0)://直线
+		
+		
+			break;
+		case (1)://转弯
+				
+		
+			break;
+	}
 }
 
 /* ==================== 通信 ==================== */
@@ -276,14 +364,9 @@ void Gimbal_Aim3(void)// 动->动
  */
 uint8_t Gimbal_GetFlag(void)
 {
-    if (gimbal_flag == 0U)
-    {
-        return 0U;
-    }
-
-    gimbal_flag = 0U;
-
-    return 1U;
+	uint8_t temp_flag = gimbal_flag;
+	gimbal_flag = 0;
+    return temp_flag;
 }
 
 /**
@@ -291,18 +374,17 @@ uint8_t Gimbal_GetFlag(void)
  * @param  motor GIMBAL_MOTOR_YAW 或 GIMBAL_MOTOR_PITCH
  * @return 对应轴目标速度；参数无效时返回 0
  */
-float Gimbal_GetSpeed(uint8_t motor)
+float Gimbal_GetSpeed(uint8_t type)
 {
-    if (motor == GIMBAL_MOTOR_YAW)
-    {
+    if (type == GIMBAL_SPEED_YAW)
         return gimbal_speed_yaw;
-    }
-
-    if (motor == GIMBAL_MOTOR_PITCH)
-    {
+    else if (type == GIMBAL_SPEED_PITCH)
         return gimbal_speed_pitch;
-    }
-
+	else if (type == GIMBAL_ANGLE_YAW)
+        return gimbal_angle_yaw;
+	else if (type == GIMBAL_ANGLE_PITCH)
+        return gimbal_angle_pitch;
+	
     return 0.0f;
 }
 /* ==================== Init ==================== */
