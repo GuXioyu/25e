@@ -7,8 +7,8 @@
  */
 void PID_Update(PID_t *p) //更新一次 PID 控制器输出
 {
-	float ProportionalOut = 0.0f; //保存本次比例项输出
-	float IntegralOut = 0.0f; //保存本次积分项输出
+	float ProportionalOut = 0.0f; 	//保存本次比例项输出
+	float IntegralOut = 0.0f; 		//保存本次积分项输出
 	float FeedforwardOut = 0.0f; //保存本次前馈项输出
 
 	/* 更新本次控制所需的误差历史 */
@@ -55,6 +55,7 @@ void PID_Update(PID_t *p) //更新一次 PID 控制器输出
 	{
 		p->error_int = 0.0f; //无效积分模式时清除积分状态
 	}
+	// 积分限幅
 	if (p->error_int > p->error_intmax)
 	{
 		p->error_int = p->error_intmax; //限制积分上限

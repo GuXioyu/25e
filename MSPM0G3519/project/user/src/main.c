@@ -54,7 +54,6 @@ int main (void)
 		
 		Task_Line();				//循迹
 		Task_Gimbal();
-		Tx();
 		Task_Motor();				//控制电机
 		Task_Stop();  
     }

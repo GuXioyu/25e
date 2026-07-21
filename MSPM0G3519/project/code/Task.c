@@ -5,6 +5,8 @@
 extern uint16_t tick_ms;
 extern uint8_t mode;
 
+extern PID_t gimbal_aim2_x_straight_PID;
+
 uint8_t mode1_N;					//A1：目标圈数
 uint8_t mode1_line_flag;	
 uint8_t mode2;
@@ -37,6 +39,8 @@ uint16_t laser_x,laser_y;
 int8_t laps;		//	已转圈数
 
 float angle;		// hwt101
+float gyroz;
+
 
 
 
@@ -121,10 +125,10 @@ void Task_BLE_Tx(void)
 	BLE_Tx_timer_flag = 0;
 
 //	// 发送姿态角数据
-	Serial_Printf(&huart5, "t=%d, m=%d, m2=%d, m3=%d, gf=%d\n",
-							tick_ms, mode, mode2, mode3, line_gimbal_flag);
-	Serial_Printf(&huart5, "tx=%d, ty=%d, lx=%d, ly=%d\n",
-							target_x, target_y, laser_x, laser_y);   
+	Serial_Printf(&huart5, "t=%d, m=%d, m2=%d, m3=%d\n",
+							tick_ms, mode, mode2, mode3);
+//	Serial_Printf(&huart5, "tx=%d, ty=%d, lx=%d, ly=%d\n",
+//							target_x, target_y, laser_x, laser_y);   
 //	Serial_Printf(&huart5, "tx=%d, t=%d, lx=%d, ly=%d\n",
 //							, mode, mode2, mode3);
 //	Serial_Printf(&huart5, "%d, %d, %d, %d, %d, %d, %d, %d, %d\n",
@@ -135,6 +139,18 @@ void Task_BLE_Tx(void)
 //	Serial_Printf(&huart5, "%d, %d, %d, %d, %d, %d, %d, %d, %d\n",
 //							tick_ms, gray_digital[0], gray_digital[1], gray_digital[2], gray_digital[3],
 //							gray_digital[4], gray_digital[5], gray_digital[6], gray_digital[7]);
+	if (mode3 == 1)
+	{
+//		Serial_Printf(&huart5, "aim1:%f,%f\n", 
+//			gimbal_aim2_x_straight_PID.target,gimbal_aim2_x_straight_PID.actual_current);
+		Serial_Printf(&huart5, "[plot,%.0f,%.0f]\n", 
+			gimbal_aim2_x_straight_PID.target,gimbal_aim2_x_straight_PID.actual_current);
+		Serial_Printf(&huart5, "para:%.3f,%.3f,%.3f,%.3f\n",
+			gimbal_aim2_x_straight_PID.kf,
+			gimbal_aim2_x_straight_PID.kp,
+			gimbal_aim2_x_straight_PID.ki,
+			gimbal_aim2_x_straight_PID.kd);
+	}
 }
 void Task_BLE_Rx(void)
 {
@@ -149,9 +165,46 @@ void Task_BLE_Rx(void)
 		if (name != NULL && strcmp(name, "stop") == 0)
 			stop_flag = 1;
 	}
-	
-	
-	
+	else if (Tag != NULL && strcmp(Tag, "slider") == 0)
+	{
+		char *name = strtok(NULL, ", ");
+		if (name != NULL && strcmp(name, "kp") == 0)
+		{
+			char *Value1 = strtok(NULL, ", ");
+			if (Value1 != NULL)
+			{
+				float FloatValue1 = atof(Value1);
+				gimbal_aim2_x_straight_PID.kp = FloatValue1;
+			}
+		}
+		else if (name != NULL && strcmp(name, "ki") == 0)
+		{
+			char *Value1 = strtok(NULL, ", ");
+			if (Value1 != NULL)
+			{
+				float FloatValue1 = atof(Value1);
+				gimbal_aim2_x_straight_PID.ki = FloatValue1;
+			}
+		}
+		else if (name != NULL && strcmp(name, "kd") == 0)
+		{
+			char *Value1 = strtok(NULL, ", ");
+			if (Value1 != NULL)
+			{
+				float FloatValue1 = atof(Value1);
+				gimbal_aim2_x_straight_PID.kd = FloatValue1;
+			}
+		}
+		else if (name != NULL && strcmp(name, "kf") == 0)
+		{
+			char *Value1 = strtok(NULL, ", ");
+			if (Value1 != NULL)
+			{
+				float FloatValue1 = atof(Value1);
+				gimbal_aim2_x_straight_PID.kf = FloatValue1;
+			}
+		}
+	}
 }
 
 /**
@@ -261,8 +314,7 @@ void Task_Screen_Rx(void)
 	{
 		char *name = strtok(NULL, ", ");
 		if (name != NULL && strcmp(name, "B1") == 0)
-		{
-			mode3 = 1;
+		{ 
 			mode3_N = 1;
 			mode3_gimbal_flag = 1;
 			para_flag = 1;
@@ -353,6 +405,7 @@ void Task_Read_Sensor(void)
 	// 读取姿态角
 	angle = HWT101_GetYaw();
 	laps = HWT101_GetLapCount();
+	gyroz = HWT101_GetGyroZ();
 
 	// 发送灰度传感器查询命令
 	GraySensor_SendQuery(&huart1, 1);
@@ -396,11 +449,11 @@ void Task_Line(void)
 				angle >= -25 && angle <= 25 &&
 				gray_digital[0] == 1 && gray_digital[1] == 1 && gray_digital[3] == 1)
 			{
-				mode = 0;
 				motor_flag[0] = 1;
 				speed_left = 0;
 				motor_flag[1] = 1;
 				speed_right = 0;
+				mode1_line_flag = 0;
 			}
 		break;
 		
@@ -410,12 +463,13 @@ void Task_Line(void)
 			if (abs(laps) >= mode3_N && 
 				angle >= -10 && angle <= 10 &&
 				gray_digital[0] == 1 && gray_digital[1] == 1 && gray_digital[3] == 1)
+//			if (gray_digital[0] == 1 && gray_digital[1] == 1 && gray_digital[3] == 1)
 			{
-				mode = 0;
 				motor_flag[0] = 1;
 				speed_left = 0;
 				motor_flag[1] = 1;
 				speed_right = 0;
+				mode1_line_flag = 0;
 			}
 		break;
 	}
@@ -429,9 +483,11 @@ void Task_Gimbal(void)
 {
 	static uint8_t mode2_state;
 	static uint8_t mode3_state;
+	static uint8_t GimbalResetDone = 1U; // 记录非瞄准模式下是否已执行状态机复位
 	switch (mode)
 	{
 		case 2://mode2瞄准
+			GimbalResetDone = 0U; // 进入瞄准模式后允许下一次退出时复位
 			if (mode2_gimbal_flag == 0)return;
 			//自动瞄准状态机
 			switch (mode2_state)
@@ -449,8 +505,8 @@ void Task_Gimbal(void)
 			}	
 			break;
 		case 3://mode3瞄准
+			GimbalResetDone = 0U; // 进入瞄准模式后允许下一次退出时复位
 			if (mode3_gimbal_flag == 0)return;
-			Serial_Printf(&huart5, "%d\n", mode3_state);
 			switch (mode3)
 			{
 				case (1):// 动->定瞄准
@@ -465,7 +521,7 @@ void Task_Gimbal(void)
 							mode3_state = 2;
 							break;
 						case (2)://循迹
-							//开始循迹mode3_line_flag = 1;
+							mode3_line_flag = 1;
 							mode3_state = 3;
 							break;
 						case (3)://打靶
@@ -482,6 +538,11 @@ void Task_Gimbal(void)
 			}
 			break;
 		default:
+			if (GimbalResetDone == 0U)
+			{
+				Gimbal_ResetAim1(); // 退出瞄准模式时停止云台并复位内部状态
+				GimbalResetDone = 1U;
+			}
 			mode2_state = 0;
 			break;
 	}
